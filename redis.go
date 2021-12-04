@@ -6,7 +6,7 @@ import (
 	"github.com/coredns/coredns/plugin"
 	"github.com/coredns/coredns/request"
 	"github.com/miekg/dns"
-	"github.com/rverst/coredns-redis/record"
+	"github.com/nvlong17/redis/record"
 	"strings"
 	"time"
 

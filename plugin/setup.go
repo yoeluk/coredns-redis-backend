@@ -5,7 +5,7 @@ import (
 	"github.com/caddyserver/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
-	"github.com/rverst/coredns-redis"
+	"github.com/nvlong17/redis"
 	"strconv"
 	"time"
 )

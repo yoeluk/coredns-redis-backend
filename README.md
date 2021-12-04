@@ -7,7 +7,7 @@ this plugin should be located right next to *etcd* in *plugins.cfg*:
 ...
 secondary:secondary
 etcd:etcd
-redis:github.com/rverst/coredns-redis/plugin
+redis:github.com/nvlong17/redis/plugin
 loop:loop
 forward:forward
 grpc:grpc
@@ -79,4 +79,5 @@ While the data format is JSON at the moment, but I am considering switching to
 ## credits
 
 this plugin started as a fork of [github.com/arvancloud/redis](https://github.com/arvancloud/redis).
+this repo is a further fork of [github.com/rverst/coredns-redis](https://github.com/rverst/coredns-redis).
 
