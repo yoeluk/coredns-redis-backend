@@ -2,12 +2,13 @@ package plugin
 
 import (
 	"errors"
+	"strconv"
+	"time"
+
 	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/core/dnsserver"
 	"github.com/coredns/coredns/plugin"
 	"github.com/nvlong17/redis"
-	"strconv"
-	"time"
 )
 
 func init() {
@@ -30,10 +31,10 @@ func setup(c *caddy.Controller) error {
 	}
 
 	p := &Plugin{
-		Redis: r,
+		Redis:          r,
 		loadZoneTicker: time.NewTicker(time.Duration(r.DefaultTtl) * time.Second),
 	}
-	p.startZoneNameCache()
+	// p.startZoneNameCache()
 
 	dnsserver.GetConfig(c).AddPlugin(func(next plugin.Handler) plugin.Handler {
 		p.Next = next

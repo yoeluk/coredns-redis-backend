@@ -3,7 +3,6 @@ package plugin
 import (
 	"context"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
@@ -90,7 +89,8 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	// 	conn = p.Redis.Pool.Get()
 	// }
 
-	zone := p.Redis.LoadZoneC(qName, false, conn)
+	zoneName = qName
+	zone := p.Redis.LoadZoneC(zoneName, false, conn)
 	if zone == nil {
 		log.Errorf("unable to load zone: %s", zoneName)
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeServerFailure, nil)
@@ -181,43 +181,46 @@ func (p *Plugin) handleZoneTransfer(zone *record.Zone, zones []string, w dns.Res
 	return dns.RcodeSuccess, nil
 }
 
-func (p *Plugin) startZoneNameCache() {
+//UNUSED
+// func (p *Plugin) startZoneNameCache() {
 
-	if err := p.loadCache(); err != nil {
-		log.Fatal("unable to load zones to cache", err)
-	} else {
-		log.Info("zone name cache loaded")
-	}
-	go func() {
-		for {
-			select {
-			case <-p.loadZoneTicker.C:
-				if err := p.loadCache(); err != nil {
-					log.Error("unable to load zones to cache", err)
-					return
-				} else {
-					log.Infof("zone name cache refreshed (%v)", time.Now())
-				}
-			}
-		}
-	}()
-}
+// 	if err := p.loadCache(); err != nil {
+// 		log.Fatal("unable to load zones to cache", err)
+// 	} else {
+// 		log.Info("zone name cache loaded")
+// 	}
+// 	go func() {
+// 		for {
+// 			select {
+// 			case <-p.loadZoneTicker.C:
+// 				if err := p.loadCache(); err != nil {
+// 					log.Error("unable to load zones to cache", err)
+// 					return
+// 				} else {
+// 					log.Infof("zone name cache refreshed (%v)", time.Now())
+// 				}
+// 			}
+// 		}
+// 	}()
+// }
 
-func (p *Plugin) loadCache() error {
-	z, err := p.Redis.LoadAllZoneNames()
-	if err != nil {
-		return err
-	}
-	sort.Strings(z)
-	p.lock.Lock()
-	p.zones = z
-	p.lastRefresh = time.Now()
-	p.lock.Unlock()
-	return nil
-}
+//UNUSED
+// func (p *Plugin) loadCache() error {
+// 	z, err := p.Redis.LoadAllZoneNames()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	sort.Strings(z)
+// 	p.lock.Lock()
+// 	p.zones = z
+// 	p.lastRefresh = time.Now()
+// 	p.lock.Unlock()
+// 	return nil
+// }
 
-func (p *Plugin) checkCache() {
-	if time.Now().Sub(p.lastRefresh).Seconds() > float64(p.Redis.DefaultTtl*2) {
-		p.startZoneNameCache()
-	}
-}
+//UNUSED
+// func (p *Plugin) checkCache() {
+// 	if time.Now().Sub(p.lastRefresh).Seconds() > float64(p.Redis.DefaultTtl*2) {
+// 		p.startZoneNameCache()
+// 	}
+// }
