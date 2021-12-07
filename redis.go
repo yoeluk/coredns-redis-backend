@@ -3,12 +3,13 @@ package redis
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"time"
+
 	"github.com/coredns/coredns/plugin"
 	"github.com/coredns/coredns/request"
 	"github.com/miekg/dns"
 	"github.com/nvlong17/redis/record"
-	"strings"
-	"time"
 
 	redisCon "github.com/gomodule/redigo/redis"
 )
@@ -586,6 +587,20 @@ func (redis *Redis) LoadZoneRecordsC(key string, z *record.Zone, conn redisCon.C
 	}
 
 	return r
+}
+
+// CheckZoneInDb check if zone names is saved in the backend
+func (redis *Redis) CheckZoneInDb(name string) (bool, error) {
+	conn := redis.Pool.Get()
+	defer conn.Close()
+
+	reply, err := conn.Do("EXISTS", redis.keyPrefix+name+redis.keySuffix)
+	zoneCount, err := redisCon.Int(reply, err)
+	if err != nil {
+		return false, err
+	}
+
+	return zoneCount > 0, nil
 }
 
 // LoadAllZoneNames returns all zone names saved in the backend

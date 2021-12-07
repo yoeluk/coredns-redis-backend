@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/plugin"
 	"github.com/coredns/coredns/plugin/metrics/vars"
 	"github.com/coredns/coredns/plugin/pkg/edns"
@@ -20,7 +21,6 @@ import (
 	"github.com/coredns/coredns/plugin/pkg/transport"
 	"github.com/coredns/coredns/request"
 
-	"github.com/caddyserver/caddy"
 	"github.com/miekg/dns"
 	ot "github.com/opentracing/opentracing-go"
 )
@@ -110,6 +110,7 @@ func (s *Server) Serve(l net.Listener) error {
 	s.m.Lock()
 	s.server[tcp] = &dns.Server{Listener: l, Net: "tcp", Handler: dns.HandlerFunc(func(w dns.ResponseWriter, r *dns.Msg) {
 		ctx := context.WithValue(context.Background(), Key{}, s)
+		ctx = context.WithValue(ctx, LoopKey{}, 0)
 		s.ServeDNS(ctx, w, r)
 	})}
 	s.m.Unlock()
@@ -123,6 +124,7 @@ func (s *Server) ServePacket(p net.PacketConn) error {
 	s.m.Lock()
 	s.server[udp] = &dns.Server{PacketConn: p, Net: "udp", Handler: dns.HandlerFunc(func(w dns.ResponseWriter, r *dns.Msg) {
 		ctx := context.WithValue(context.Background(), Key{}, s)
+		ctx = context.WithValue(ctx, LoopKey{}, 0)
 		s.ServeDNS(ctx, w, r)
 	})}
 	s.m.Unlock()
@@ -240,23 +242,16 @@ func (s *Server) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 	for {
 		if h, ok := s.zones[q[off:]]; ok {
+			if h.pluginChain == nil { // zone defined, but has not got any plugins
+				errorAndMetricsFunc(s.Addr, w, r, dns.RcodeRefused)
+				return
+			}
 			if r.Question[0].Qtype != dns.TypeDS {
-				if h.FilterFunc == nil {
-					rcode, _ := h.pluginChain.ServeDNS(ctx, w, r)
-					if !plugin.ClientWrite(rcode) {
-						errorFunc(s.Addr, w, r, rcode)
-					}
-					return
+				rcode, _ := h.pluginChain.ServeDNS(ctx, w, r)
+				if !plugin.ClientWrite(rcode) {
+					errorFunc(s.Addr, w, r, rcode)
 				}
-				// FilterFunc is set, call it to see if we should use this handler.
-				// This is given to full query name.
-				if h.FilterFunc(q) {
-					rcode, _ := h.pluginChain.ServeDNS(ctx, w, r)
-					if !plugin.ClientWrite(rcode) {
-						errorFunc(s.Addr, w, r, rcode)
-					}
-					return
-				}
+				return
 			}
 			// The type is DS, keep the handler, but keep on searching as maybe we are serving
 			// the parent as well and the DS should be routed to it - this will probably *misroute* DS
@@ -343,8 +338,13 @@ const (
 	udp = 1
 )
 
-// Key is the context key for the current server added to the context.
-type Key struct{}
+type (
+	// Key is the context key for the current server added to the context.
+	Key struct{}
+
+	// LoopKey is the context key to detect server wide loops.
+	LoopKey struct{}
+)
 
 // EnableChaos is a map with plugin names for which we should open CH class queries as we block these by default.
 var EnableChaos = map[string]struct{}{

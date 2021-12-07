@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/coredns/caddy"
 	"github.com/coredns/coredns/pb"
 	"github.com/coredns/coredns/plugin/pkg/reuseport"
 	"github.com/coredns/coredns/plugin/pkg/transport"
 
-	"github.com/caddyserver/caddy"
 	"github.com/grpc-ecosystem/grpc-opentracing/go/otgrpc"
 	"github.com/miekg/dns"
 	"github.com/opentracing/opentracing-go"
@@ -134,6 +134,7 @@ func (s *ServergRPC) Query(ctx context.Context, in *pb.DnsPacket) (*pb.DnsPacket
 	w := &gRPCresponse{localAddr: s.listenAddr, remoteAddr: a, Msg: msg}
 
 	dnsCtx := context.WithValue(ctx, Key{}, s.Server)
+	dnsCtx = context.WithValue(dnsCtx, LoopKey{}, 0)
 	s.ServeDNS(dnsCtx, w, msg)
 
 	packed, err := w.Msg.Pack()

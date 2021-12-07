@@ -3,6 +3,10 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"sort"
+	"sync"
+	"time"
+
 	"github.com/coredns/coredns/plugin"
 	clog "github.com/coredns/coredns/plugin/pkg/log"
 	"github.com/coredns/coredns/request"
@@ -10,9 +14,6 @@ import (
 	"github.com/miekg/dns"
 	redis "github.com/nvlong17/redis"
 	"github.com/nvlong17/redis/record"
-	"sort"
-	"sync"
-	"time"
 )
 
 const name = "redis"
@@ -59,6 +60,20 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	}()
 
 	var zoneName string
+	// When a DNS request arrives
+	// Check in Redis first, if domain not exist, go to next plugin
+	// Else continue to serve already loaded zones
+	conn = p.Redis.Pool.Get()
+	isBlocked, err := p.Redis.CheckZoneInDb(qName)
+	if err != nil {
+		fmt.Println(err)
+		return p.Redis.ErrorResponse(state, qName, dns.RcodeServerFailure, err)
+	} else if isBlocked {
+		log.Debugf("zone not in backend: %s", qName)
+		p.checkCache()
+		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
+	}
+
 	x := sort.SearchStrings(p.zones, qName)
 	if x >= 0 && p.zones[x] == qName {
 		zoneName = p.zones[x]
@@ -69,7 +84,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 	if zoneName == "" {
 		log.Debugf("zone not found: %s", qName)
-		p.checkCache();
+		p.checkCache()
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
 	} else if conn == nil {
 		conn = p.Redis.Pool.Get()
@@ -202,7 +217,7 @@ func (p *Plugin) loadCache() error {
 }
 
 func (p *Plugin) checkCache() {
-	if time.Now().Sub(p.lastRefresh).Seconds() > float64(p.Redis.DefaultTtl * 2) {
+	if time.Now().Sub(p.lastRefresh).Seconds() > float64(p.Redis.DefaultTtl*2) {
 		p.startZoneNameCache()
 	}
 }
