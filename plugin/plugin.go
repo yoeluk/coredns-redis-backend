@@ -68,7 +68,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	if err != nil {
 		fmt.Println(err)
 		return p.Redis.ErrorResponse(state, qName, dns.RcodeServerFailure, err)
-	} else if isBlocked {
+	} else if !isBlocked {
 		log.Debugf("zone not in backend: %s", qName)
 		p.checkCache()
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
