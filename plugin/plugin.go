@@ -70,27 +70,27 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		return p.Redis.ErrorResponse(state, qName, dns.RcodeServerFailure, err)
 	} else if !isBlocked {
 		log.Debugf("zone not in backend: %s", qName)
-		p.checkCache()
+		// p.checkCache()
 		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
 	}
 
-	x := sort.SearchStrings(p.zones, qName)
-	if x >= 0 && p.zones[x] == qName {
-		zoneName = p.zones[x]
-	} else {
-		conn = p.Redis.Pool.Get()
-		zoneName = plugin.Zones(p.zones).Matches(qName)
-	}
+	// x := sort.SearchStrings(p.zones, qName)
+	// if x >= 0 && p.zones[x] == qName {
+	// 	zoneName = p.zones[x]
+	// } else {
+	// 	conn = p.Redis.Pool.Get()
+	// 	zoneName = plugin.Zones(p.zones).Matches(qName)
+	// }
 
-	if zoneName == "" {
-		log.Debugf("zone not found: %s", qName)
-		p.checkCache()
-		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
-	} else if conn == nil {
-		conn = p.Redis.Pool.Get()
-	}
+	// if zoneName == "" {
+	// 	log.Debugf("zone not found: %s", qName)
+	// 	// p.checkCache()
+	// 	return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
+	// } else if conn == nil {
+	// 	conn = p.Redis.Pool.Get()
+	// }
 
-	zone := p.Redis.LoadZoneC(zoneName, false, conn)
+	zone := p.Redis.LoadZoneC(qName, false, conn)
 	if zone == nil {
 		log.Errorf("unable to load zone: %s", zoneName)
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeServerFailure, nil)
@@ -104,7 +104,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	location := p.Redis.FindLocation(qName, zone)
 	if location == "" {
 		log.Debugf("location %s not found for zone: %s", qName, zone)
-		p.checkCache()
+		// p.checkCache()
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeNameError, nil)
 	}
 
