@@ -49,10 +49,9 @@ var testRecords = []testRecord{
 func newRedis() (*Redis, error) {
 
 	r := New()
-	r.SetKeyPrefix(prefix)
-	r.SetKeySuffix(suffix)
 	r.SetDefaultTtl(minTtl)
-	r.SetAddress("192.168.0.100:6379")
+	r.SetPassword("wae9v7Xt8e")
+	r.SetAddress("127.0.0.1:6379")
 	if err := r.Connect(); err != nil {
 		return nil, err
 	}
@@ -90,5 +89,3 @@ func TestRedis_SaveZone(t *testing.T) {
 		})
 	}
 }
-
-

@@ -40,7 +40,8 @@ var testRecords = []testRecord{
 	{"@", record.NS{Ttl: testTtl, Host: "ns2.example.org."}},
 	{"@", record.NS{Ttl: testTtl, Host: "ns3"}},
 	{"@", record.MX{Ttl: testTtl, Host: "mail.example.org.", Preference: 10}},
-	{"wwx", record.CNAME{Ttl: testTtl, Host: "www.example.org."}},
+	{"wwx", record.CNAME{Ttl: testTtl, Host: "host1.example.cat."}},
+	{"wxx", record.CNAME{Ttl: testTtl, Host: "wwx.example.org."}},
 	{"_autodiscover._tcp", record.SRV{Ttl: testTtl, Priority: 10, Weight: 50, Port: 443, Target: "mail.example.org."}},
 	{"ns1", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.36")}},
 	{"ns2", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.37")}},
@@ -60,10 +61,9 @@ func newRedisPlugin() (*Plugin, error) {
 
 	p := new(Plugin)
 	p.Redis = redis.New()
-	p.Redis.SetKeyPrefix(prefix)
-	p.Redis.SetKeySuffix(suffix)
 	p.Redis.SetDefaultTtl(defaultTtl)
-	p.Redis.SetAddress("192.168.0.100:6379")
+	p.Redis.SetPassword("wae9v7Xt8e")
+	p.Redis.SetAddress("127.0.0.1:6379")
 	err := p.Redis.Connect()
 	return p, err
 }
@@ -133,67 +133,58 @@ func TestPlugin_Lookup(t *testing.T) {
 				test.A("ns3.example.net. 4242 IN A 93.184.216.43")},
 		}},
 		{
-			name:
-			"example.net. IN MX", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeMX,
-			Answer: []dns.RR{test.MX("example.net. 4242 IN MX 10 mail.example.org. ")},
-			Extra: []dns.RR{test.A("mail.example.org. 4242 IN A 93.184.216.38"),
-				test.AAAA("mail.example.org. 4242 IN AAAA 2606:2800:220:1:248:1893:25c8:1947")},
-		},
-		},
-		{
-			name:
-			"_autodiscover._tcp.example.net. IN SRV", tc: test.Case{Qname: "_autodiscover._tcp.example.net.", Qtype: dns.TypeSRV,
-			Answer: []dns.RR{test.SRV("_autodiscover._tcp.example.net. 4242 IN SRV 10 50 443 mail.example.org. ")},
-			Extra: []dns.RR{test.A("mail.example.org. 4242 IN A 93.184.216.38"),
-				test.AAAA("mail.example.org. 4242 IN AAAA 2606:2800:220:1:248:1893:25c8:1947")},
-		},
+			name: "example.net. IN MX", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeMX,
+				Answer: []dns.RR{test.MX("example.net. 4242 IN MX 10 mail.example.org. ")},
+				Extra: []dns.RR{test.A("mail.example.org. 4242 IN A 93.184.216.38"),
+					test.AAAA("mail.example.org. 4242 IN AAAA 2606:2800:220:1:248:1893:25c8:1947")},
+			},
 		},
 		{
-			name:
-			"example.net. IN CAA", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeCAA,
-			Answer: []dns.RR{&dns.CAA{
-				Hdr:  dns.RR_Header{Name: "example.net.", Rrtype: dns.TypeCAA},
-				Flag: 0, Tag: "issue", Value: "letsencrypt.org",
-			}},
-		},
+			name: "_autodiscover._tcp.example.net. IN SRV", tc: test.Case{Qname: "_autodiscover._tcp.example.net.", Qtype: dns.TypeSRV,
+				Answer: []dns.RR{test.SRV("_autodiscover._tcp.example.net. 4242 IN SRV 10 50 443 mail.example.org. ")},
+				Extra: []dns.RR{test.A("mail.example.org. 4242 IN A 93.184.216.38"),
+					test.AAAA("mail.example.org. 4242 IN AAAA 2606:2800:220:1:248:1893:25c8:1947")},
+			},
 		},
 		{
-			name:
-			"lb.example.net. IN A", tc: test.Case{Qname: "lb.example.net.", Qtype: dns.TypeA,
-			Answer: []dns.RR{test.A("lb.example.net. 4242 IN A 93.184.216.39"),
-				test.A("lb.example.net. 4242 IN A 93.184.216.40"),
-				test.A("lb.example.net. 4242 IN A 93.184.216.41"),
-				test.A("lb.example.net. 4242 IN A 93.184.216.42")},
-		},
-		},
-		{
-			name:
-			"wildcard wc1.example.net. IN A", tc: test.Case{Qname: "wc1.example.net.", Qtype: dns.TypeA,
-			Answer: []dns.RR{test.A("wc1.example.net. 4242 IN A 93.184.216.43")},
-		},
+			name: "example.net. IN CAA", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeCAA,
+				Answer: []dns.RR{&dns.CAA{
+					Hdr:  dns.RR_Header{Name: "example.net.", Rrtype: dns.TypeCAA},
+					Flag: 0, Tag: "issue", Value: "letsencrypt.org",
+				}},
+			},
 		},
 		{
-			name:
-			"wildcard wc1.example.net. IN TXT", tc: test.Case{Qname: "wc1.example.net.", Qtype: dns.TypeTXT,
-			Answer: []dns.RR{test.TXT("wc1.example.net. 4242 IN TXT \"" + wcTxt + "\"")},
-		},
-		},
-		{
-			name:
-			"wildcard a.b.c.d.example.net. IN A", tc: test.Case{Qname: "a.b.c.d.example.net.", Qtype: dns.TypeA,
-			Answer: []dns.RR{test.A("a.b.c.d.example.net. 4242 IN A 93.184.216.43")},
-		},
+			name: "lb.example.net. IN A", tc: test.Case{Qname: "lb.example.net.", Qtype: dns.TypeA,
+				Answer: []dns.RR{test.A("lb.example.net. 4242 IN A 93.184.216.39"),
+					test.A("lb.example.net. 4242 IN A 93.184.216.40"),
+					test.A("lb.example.net. 4242 IN A 93.184.216.41"),
+					test.A("lb.example.net. 4242 IN A 93.184.216.42")},
+			},
 		},
 		{
-			name:
-			"wildcard x.y.z.example.net. IN TXT", tc: test.Case{Qname: "x.y.z.example.net.", Qtype: dns.TypeTXT,
-			Answer: []dns.RR{test.TXT("x.y.z.example.net. 4242 IN TXT \"" + wcTxt + "\"")},
-		},
+			name: "wildcard wc1.example.net. IN A", tc: test.Case{Qname: "wc1.example.net.", Qtype: dns.TypeA,
+				Answer: []dns.RR{test.A("wc1.example.net. 4242 IN A 93.184.216.43")},
+			},
 		},
 		{
-			name:
-			"not existing not.*.example.net. IN A", tc: test.Case{Qname: "not.*.example.net.", Qtype: dns.TypeA,
-			Rcode: dns.RcodeNameError},
+			name: "wildcard wc1.example.net. IN TXT", tc: test.Case{Qname: "wc1.example.net.", Qtype: dns.TypeTXT,
+				Answer: []dns.RR{test.TXT("wc1.example.net. 4242 IN TXT \"" + wcTxt + "\"")},
+			},
+		},
+		{
+			name: "wildcard a.b.c.d.example.net. IN A", tc: test.Case{Qname: "a.b.c.d.example.net.", Qtype: dns.TypeA,
+				Answer: []dns.RR{test.A("a.b.c.d.example.net. 4242 IN A 93.184.216.43")},
+			},
+		},
+		{
+			name: "wildcard x.y.z.example.net. IN TXT", tc: test.Case{Qname: "x.y.z.example.net.", Qtype: dns.TypeTXT,
+				Answer: []dns.RR{test.TXT("x.y.z.example.net. 4242 IN TXT \"" + wcTxt + "\"")},
+			},
+		},
+		{
+			name: "not existing not.*.example.net. IN A", tc: test.Case{Qname: "not.*.example.net.", Qtype: dns.TypeA,
+				Rcode: dns.RcodeNameError},
 		},
 	}
 
@@ -226,11 +217,10 @@ func TestPlugin_Lookup2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for i:=0;i<5;i++ {
+	for i := 0; i < 5; i++ {
 		fmt.Println("shutdown redis backend for log testing")
 		time.Sleep(time.Second)
 	}
-
 
 	for _, z := range zones {
 		zone := record.NewZone(z, record.SOA{
@@ -283,7 +273,7 @@ func TestPlugin_Lookup2(t *testing.T) {
 			if err != nil {
 				t.Error(err)
 			}
-			for i:=0;i<5;i++ {
+			for i := 0; i < 5; i++ {
 				fmt.Println("shutdown redis backend for log testing")
 				time.Sleep(time.Second)
 			}
@@ -291,7 +281,5 @@ func TestPlugin_Lookup2(t *testing.T) {
 	}
 
 }
-
-
 
 var ctxt context.Context

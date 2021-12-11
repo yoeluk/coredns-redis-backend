@@ -102,6 +102,11 @@ func redisParse(c *caddy.Controller) (*redis.Redis, error) {
 					} else {
 						r.SetDefaultTtl(t)
 					}
+				case "referralPrefix":
+					if !c.NextArg() {
+						return redis.New(), c.ArgErr()
+					}
+					r.SetReferralPrefix(c.Val())
 				default:
 					if c.Val() != "}" {
 						return redis.New(), c.Errf("unknown property '%s'", c.Val())

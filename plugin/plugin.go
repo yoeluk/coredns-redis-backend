@@ -63,36 +63,48 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	// Check in Redis first, if domain not exist, go to next plugin
 	// Else continue to serve already loaded zones
 	conn = p.Redis.Pool.Get()
-	isBlocked, err := p.Redis.CheckZoneInDb(qName)
+	isBlocked, zoneName, err := p.Redis.CheckZoneInDb(qName)
 	if err != nil {
 		fmt.Println(err)
 		return p.Redis.ErrorResponse(state, qName, dns.RcodeServerFailure, err)
 	} else if !isBlocked {
 		log.Debugf("zone not in backend: %s", qName)
 		// p.checkCache()
-		return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
+		return p.Redis.ErrorResponse(state, qName, dns.RcodeNameError, err)
 	}
 
-	// x := sort.SearchStrings(p.zones, qName)
-	// if x >= 0 && p.zones[x] == qName {
-	// 	zoneName = p.zones[x]
-	// } else {
-	// 	conn = p.Redis.Pool.Get()
-	// 	zoneName = plugin.Zones(p.zones).Matches(qName)
-	// }
+	isReferral, err := p.Redis.CheckReferralNeeded(qName)
 
-	// if zoneName == "" {
-	// 	log.Debugf("zone not found: %s", qName)
-	// 	// p.checkCache()
-	// 	return plugin.NextOrFailure(qName, p.Next, ctx, w, r)
-	// } else if conn == nil {
-	// 	conn = p.Redis.Pool.Get()
-	// }
+	if err != nil {
+		fmt.Println(err)
+		return p.Redis.ErrorResponse(state, qName, dns.RcodeServerFailure, err)
+	} else if isReferral {
 
-	zoneName = qName
+		zone, records := p.Redis.LoadReferralZoneC(qName, conn)
+
+		if zone == nil {
+			fmt.Printf("unable to load zone: %s\n", zoneName)
+			return p.Redis.ErrorResponse(state, zoneName, dns.RcodeServerFailure, nil)
+		}
+
+		authority := make([]dns.RR, 0, 10)
+		extras := make([]dns.RR, 0, 10)
+		authority, extras = p.Redis.NS(zone.Name, zone, records, p.zones, conn)
+
+		m := new(dns.Msg)
+		m.SetReply(r)
+		m.Authoritative, m.RecursionAvailable, m.Compress = true, false, true
+		m.Ns = append(m.Ns, authority[:2]...)
+		m.Extra = append(m.Extra, extras...)
+		state.SizeAndDo(m)
+		m = state.Scrub(m)
+		_ = w.WriteMsg(m)
+		return dns.RcodeSuccess, nil
+	}
+
 	zone := p.Redis.LoadZoneC(zoneName, false, conn)
 	if zone == nil {
-		log.Errorf("unable to load zone: %s", zoneName)
+		fmt.Printf("unable to load zone: %s\n", zoneName)
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeServerFailure, nil)
 	}
 
@@ -121,7 +133,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	case dns.TypeAAAA:
 		answers, extras = p.Redis.AAAA(qName, zone, zoneRecords)
 	case dns.TypeCNAME:
-		answers, extras = p.Redis.CNAME(qName, zone, zoneRecords)
+		answers, extras = p.Redis.CNAME(qName, zone, zoneRecords, p.zones, conn)
 	case dns.TypeTXT:
 		answers, extras = p.Redis.TXT(qName, zone, zoneRecords)
 	case dns.TypeNS:
@@ -180,47 +192,3 @@ func (p *Plugin) handleZoneTransfer(zone *record.Zone, zones []string, w dns.Res
 	w.Hijack()
 	return dns.RcodeSuccess, nil
 }
-
-//UNUSED
-// func (p *Plugin) startZoneNameCache() {
-
-// 	if err := p.loadCache(); err != nil {
-// 		log.Fatal("unable to load zones to cache", err)
-// 	} else {
-// 		log.Info("zone name cache loaded")
-// 	}
-// 	go func() {
-// 		for {
-// 			select {
-// 			case <-p.loadZoneTicker.C:
-// 				if err := p.loadCache(); err != nil {
-// 					log.Error("unable to load zones to cache", err)
-// 					return
-// 				} else {
-// 					log.Infof("zone name cache refreshed (%v)", time.Now())
-// 				}
-// 			}
-// 		}
-// 	}()
-// }
-
-//UNUSED
-// func (p *Plugin) loadCache() error {
-// 	z, err := p.Redis.LoadAllZoneNames()
-// 	if err != nil {
-// 		return err
-// 	}
-// 	sort.Strings(z)
-// 	p.lock.Lock()
-// 	p.zones = z
-// 	p.lastRefresh = time.Now()
-// 	p.lock.Unlock()
-// 	return nil
-// }
-
-//UNUSED
-// func (p *Plugin) checkCache() {
-// 	if time.Now().Sub(p.lastRefresh).Seconds() > float64(p.Redis.DefaultTtl*2) {
-// 		p.startZoneNameCache()
-// 	}
-// }
