@@ -40,7 +40,7 @@ var testRecords = []testRecord{
 	{"@", record.NS{Ttl: testTtl, Host: "ns2.example.org."}},
 	{"@", record.NS{Ttl: testTtl, Host: "ns3"}},
 	{"@", record.MX{Ttl: testTtl, Host: "mail.example.org.", Preference: 10}},
-	{"wwx", record.CNAME{Ttl: testTtl, Host: "host1.example.cat."}},
+	{"wwx", record.CNAME{Ttl: testTtl, Host: "www.example.org."}},
 	{"wxx", record.CNAME{Ttl: testTtl, Host: "wwx.example.org."}},
 	{"_autodiscover._tcp", record.SRV{Ttl: testTtl, Priority: 10, Weight: 50, Port: 443, Target: "mail.example.org."}},
 	{"ns1", record.A{Ttl: testTtl, Ip: net.ParseIP("93.184.216.36")}},
@@ -120,7 +120,11 @@ func TestPlugin_Lookup(t *testing.T) {
 			Answer: []dns.RR{test.TXT("example.net. 4242 IN TXT \"" + txt + "\"")},
 		}},
 		{name: "wwx.example.net. IN CNAME", tc: test.Case{Qname: "wwx.example.net.", Qtype: dns.TypeCNAME,
-			Answer: []dns.RR{test.CNAME("wwx.example.net. 4242 IN CNAME www.example.org.")},
+			Answer: []dns.RR{
+				test.CNAME("wwx.example.net. 4242 IN CNAME www.example.org."),
+				test.A("www.example.org. 4242 IN A 93.184.216.34"),
+				test.AAAA("www.example.org. 4242 IN AAAA 2606:2800:220:1:248:1893:25c8:1946"),
+			},
 		}},
 		{name: "example.net. IN NS", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeNS,
 			Answer: []dns.RR{
