@@ -134,9 +134,9 @@ func (redis *Redis) SOA(z *record.Zone, rec *record.Records) (answers, extras []
 	return
 }
 
-func (redis *Redis) A(name string, z *record.Zone, record *record.Records, zones []string, conn redisCon.Conn) (answers, extras []dns.RR) {
-	if len(record.A) > 0 {
-		for _, a := range record.A {
+func (redis *Redis) A(name string, z *record.Zone, rec *record.Records, zones []string, conn redisCon.Conn) (answers, extras []dns.RR) {
+	if len(rec.A) > 0 {
+		for _, a := range rec.A {
 			if a.Ip == nil {
 				continue
 			}
@@ -146,16 +146,17 @@ func (redis *Redis) A(name string, z *record.Zone, record *record.Records, zones
 			r.A = a.Ip
 			answers = append(answers, r)
 		}
-	} else if len(record.CNAME) > 0 {
-		for _, cname := range record.CNAME {
+	} else if len(rec.CNAME) > 0 {
+		for _, cname := range rec.CNAME {
 			if len(cname.Host) == 0 {
 				continue
 			}
 			r := new(dns.CNAME)
-			r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeA,
+			r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeCNAME,
 				Class: dns.ClassINET, Ttl: redis.ttl(cname.Ttl)}
 			r.Target = dns.Fqdn(cname.Host)
-			answers = append(answers, redis.getExtras(cname.Host, z, zones, conn)...)
+			answers = append(answers, redis.getExtras(cname.Host, z, zones, conn, cname.Host)...)
+			answers = append(answers, r)
 		}
 	}
 	return
@@ -175,9 +176,16 @@ func (redis Redis) AAAA(name string, _ *record.Zone, record *record.Records) (an
 	return
 }
 
-func (redis *Redis) CNAME(name string, z *record.Zone, record *record.Records, zones []string, conn redisCon.Conn) (answers, extras []dns.RR) {
+func (redis *Redis) CNAME(name string, z *record.Zone, record *record.Records, zones []string, conn redisCon.Conn, excluding ...string) (answers, extras []dns.RR) {
 	for _, cname := range record.CNAME {
-		if len(cname.Host) == 0 {
+		skip := false
+		for _, e := range excluding {
+			if name == e || cname.Host == e {
+				skip = true
+				continue
+			}
+		}
+		if len(cname.Host) == 0 || skip {
 			continue
 		}
 		r := new(dns.CNAME)
@@ -185,7 +193,8 @@ func (redis *Redis) CNAME(name string, z *record.Zone, record *record.Records, z
 			Class: dns.ClassINET, Ttl: redis.ttl(cname.Ttl)}
 		r.Target = dns.Fqdn(cname.Host)
 		answers = append(answers, r)
-		extras = append(extras, redis.getExtras(cname.Host, z, zones, conn)...)
+		excluding = append(excluding, cname.Host)
+		extras = append(extras, redis.getExtras(cname.Host, z, zones, conn, excluding...)...)
 	}
 	return
 }
@@ -349,7 +358,7 @@ func (redis *Redis) AXFR(z *record.Zone, zones []string, conn redisCon.Conn) (re
 	return
 }
 
-func (redis *Redis) getExtras(name string, z *record.Zone, zones []string, conn redisCon.Conn) []dns.RR {
+func (redis *Redis) getExtras(name string, z *record.Zone, zones []string, conn redisCon.Conn, excluding ...string) []dns.RR {
 	location := redis.FindLocation(name, z)
 	if location == "" {
 		zoneName := plugin.Zones(zones).Matches(name)
@@ -369,12 +378,12 @@ func (redis *Redis) getExtras(name string, z *record.Zone, zones []string, conn 
 		if location == "" {
 			return nil
 		}
-		return redis.fillExtras(name, z2, location, zones, conn)
+		return redis.fillExtras(name, z2, location, zones, conn, excluding...)
 	}
-	return redis.fillExtras(name, z, location, zones, conn)
+	return redis.fillExtras(name, z, location, zones, conn, excluding...)
 }
 
-func (redis *Redis) fillExtras(name string, z *record.Zone, location string, zones []string, conn redisCon.Conn) []dns.RR {
+func (redis *Redis) fillExtras(name string, z *record.Zone, location string, zones []string, conn redisCon.Conn, excluding ...string) []dns.RR {
 	var (
 		zoneRecords *record.Records
 		answers     []dns.RR
@@ -390,7 +399,7 @@ func (redis *Redis) fillExtras(name string, z *record.Zone, location string, zon
 	answers = append(answers, a...)
 	aaaa, _ := redis.AAAA(name, z, zoneRecords)
 	answers = append(answers, aaaa...)
-	cname, _ := redis.CNAME(name, z, zoneRecords, zones, conn)
+	cname, _ := redis.CNAME(name, z, zoneRecords, zones, conn, excluding...)
 	answers = append(answers, cname...)
 	return answers
 }
