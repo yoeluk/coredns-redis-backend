@@ -3,6 +3,7 @@ package redis
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/coredns/coredns/plugin/pkg/log"
 	"strings"
 	"time"
 
@@ -618,37 +619,40 @@ func (redis *Redis) LoadReferralZoneC(zone string, conn redisCon.Conn) (*record.
 		reply             interface{}
 		err               error
 		authorityZoneName string
-		authSOA           string
+		soaRec            *record.Records
+		soa               string
 	)
 
-	reply, err = conn.Do("HGET", redis.Key(redis.keyPrefix+redis.referralPrefix+zone), "_referral")
-	if err != nil {
-		return nil, nil
-	}
-	authorityZoneName, err = redisCon.String(reply, nil)
+	refRecKey := redis.keyPrefix + redis.referralPrefix + zone
+	recKey := "_authority_ref"
 
-	reply, err = conn.Do("HGET", redis.Key(redis.keyPrefix+authorityZoneName), "@")
+	reply, err = conn.Do("HGET", refRecKey, recKey)
+	authorityZoneName, err = redisCon.String(reply, err)
 	if err != nil {
+		log.Debugf("couldn't find the '%s' zone name in map: %s", recKey, refRecKey)
 		return nil, nil
 	}
-	authSOA, err = redisCon.String(reply, nil)
 
+	reply, err = conn.Do("HGET", redis.Key(authorityZoneName), "@")
+	soa, err = redisCon.String(reply, err)
 	if err != nil {
+		log.Debugf("couldn't find the '@' key for soa record in zone: %s", redis.Key(authorityZoneName))
 		return nil, nil
 	}
-	authSoaRec := new(record.Records)
-	err = json.Unmarshal([]byte(authSOA), authSoaRec)
+
+	soaRec = new(record.Records)
+	err = json.Unmarshal([]byte(soa), soaRec)
 	if err != nil {
-		fmt.Println("parse error : ", authorityZoneName, err)
+		log.Debugf("parsing %s, with error: %s", authorityZoneName, err)
 		return nil, nil
 	}
 
 	z := new(record.Zone)
 	z.Name = authorityZoneName
 	z.Locations = make(map[string]record.Records)
-	z.Locations["@"] = *authSoaRec
+	z.Locations["@"] = *soaRec
 
-	return z, authSoaRec
+	return z, soaRec
 }
 
 // CheckZoneInDb check if zone names is saved in the backend

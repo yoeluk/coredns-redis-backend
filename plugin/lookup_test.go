@@ -62,6 +62,8 @@ func newRedisPlugin() (*Plugin, error) {
 	p := new(Plugin)
 	p.Redis = redis.New()
 	p.Redis.SetDefaultTtl(defaultTtl)
+	p.Redis.SetKeyPrefix("__CUST1:")
+	p.Redis.SetReferralPrefix("referral:")
 	p.Redis.SetPassword("wae9v7Xt8e")
 	p.Redis.SetAddress("127.0.0.1:6379")
 	err := p.Redis.Connect()

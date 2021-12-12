@@ -102,7 +102,7 @@ func redisParse(c *caddy.Controller) (*redis.Redis, error) {
 					} else {
 						r.SetDefaultTtl(t)
 					}
-				case "referralPrefix":
+				case "referral_prefix":
 					if !c.NextArg() {
 						return redis.New(), c.ArgErr()
 					}
