@@ -122,11 +122,10 @@ func TestPlugin_Lookup(t *testing.T) {
 			Answer: []dns.RR{test.TXT("example.net. 4242 IN TXT \"" + txt + "\"")},
 		}},
 		{name: "wwx.example.net. IN CNAME", tc: test.Case{Qname: "wwx.example.net.", Qtype: dns.TypeCNAME,
-			Answer: []dns.RR{
-				test.CNAME("wwx.example.net. 4242 IN CNAME www.example.org."),
+			Answer: []dns.RR{test.CNAME("wwx.example.net. 4242 IN CNAME www.example.org.")},
+			Extra: []dns.RR{
 				test.A("www.example.org. 4242 IN A 93.184.216.34"),
-				test.AAAA("www.example.org. 4242 IN AAAA 2606:2800:220:1:248:1893:25c8:1946"),
-			},
+				test.AAAA("www.example.org. 4242 IN AAAA 2606:2800:220:1:248:1893:25c8:1946")},
 		}},
 		{name: "example.net. IN NS", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeNS,
 			Answer: []dns.RR{

@@ -152,10 +152,9 @@ func (redis *Redis) A(name string, z *record.Zone, record *record.Records, zones
 				continue
 			}
 			r := new(dns.CNAME)
-			r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeCNAME,
+			r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeA,
 				Class: dns.ClassINET, Ttl: redis.ttl(cname.Ttl)}
 			r.Target = dns.Fqdn(cname.Host)
-			answers = append(answers, r)
 			answers = append(answers, redis.getExtras(cname.Host, z, zones, conn)...)
 		}
 	}
