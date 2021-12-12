@@ -129,7 +129,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	case dns.TypeSOA:
 		answers, extras = p.Redis.SOA(zone, zoneRecords)
 	case dns.TypeA:
-		answers, extras = p.Redis.A(qName, zone, zoneRecords)
+		answers, extras = p.Redis.A(qName, zone, zoneRecords, p.zones, conn)
 	case dns.TypeAAAA:
 		answers, extras = p.Redis.AAAA(qName, zone, zoneRecords)
 	case dns.TypeCNAME:
