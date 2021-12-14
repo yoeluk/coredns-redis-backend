@@ -156,22 +156,36 @@ func (redis *Redis) A(name string, z *record.Zone, rec *record.Records, zones []
 				Class: dns.ClassINET, Ttl: redis.ttl(cname.Ttl)}
 			r.Target = dns.Fqdn(cname.Host)
 			answers = append(answers, r)
-			answers = append(answers, redis.getExtras(cname.Host, z, zones, conn, cname.Host)...)
+			answers = append(answers, redis.getExtras(cname.Host, z, zones, conn, "a", cname.Host)...)
 		}
 	}
 	return
 }
 
-func (redis Redis) AAAA(name string, _ *record.Zone, record *record.Records) (answers, extras []dns.RR) {
-	for _, aaaa := range record.AAAA {
-		if aaaa.Ip == nil {
-			continue
+func (redis Redis) AAAA(name string, z *record.Zone, rec *record.Records, zones []string, conn redisCon.Conn) (answers, extras []dns.RR) {
+	if len(rec.AAAA) > 0 {
+		for _, aaaa := range rec.AAAA {
+			if aaaa.Ip == nil {
+				continue
+			}
+			r := new(dns.AAAA)
+			r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeAAAA,
+				Class: dns.ClassINET, Ttl: redis.ttl(aaaa.Ttl)}
+			r.AAAA = aaaa.Ip
+			answers = append(answers, r)
 		}
-		r := new(dns.AAAA)
-		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeAAAA,
-			Class: dns.ClassINET, Ttl: redis.ttl(aaaa.Ttl)}
-		r.AAAA = aaaa.Ip
-		answers = append(answers, r)
+	} else if len(rec.CNAME) > 0 {
+		for _, cname := range rec.CNAME {
+			if len(cname.Host) == 0 {
+				continue
+			}
+			r := new(dns.CNAME)
+			r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeCNAME,
+				Class: dns.ClassINET, Ttl: redis.ttl(cname.Ttl)}
+			r.Target = dns.Fqdn(cname.Host)
+			answers = append(answers, r)
+			answers = append(answers, redis.getExtras(cname.Host, z, zones, conn, "aaaa", cname.Host)...)
+		}
 	}
 	return
 }
@@ -221,7 +235,7 @@ func (redis *Redis) NS(name string, z *record.Zone, record *record.Records, zone
 			Class: dns.ClassINET, Ttl: redis.ttl(ns.Ttl)}
 		r.Ns = ns.Host
 		answers = append(answers, r)
-		extras = append(extras, redis.getExtras(ns.Host, z, zones, conn)...)
+		extras = append(extras, redis.getExtras(ns.Host, z, zones, conn, "")...)
 	}
 	return
 }
@@ -237,7 +251,7 @@ func (redis *Redis) MX(name string, z *record.Zone, record *record.Records, zone
 		r.Mx = mx.Host
 		r.Preference = mx.Preference
 		answers = append(answers, r)
-		extras = append(extras, redis.getExtras(mx.Host, z, zones, conn)...)
+		extras = append(extras, redis.getExtras(mx.Host, z, zones, conn, "")...)
 	}
 	return
 }
@@ -255,7 +269,7 @@ func (redis *Redis) SRV(name string, z *record.Zone, record *record.Records, zon
 		r.Port = srv.Port
 		r.Priority = srv.Priority
 		answers = append(answers, r)
-		extras = append(extras, redis.getExtras(srv.Target, z, zones, conn)...)
+		extras = append(extras, redis.getExtras(srv.Target, z, zones, conn, "")...)
 	}
 	return
 }
@@ -270,7 +284,7 @@ func (redis *Redis) PTR(name string, z *record.Zone, record *record.Records, zon
 			Class: dns.ClassINET, Ttl: redis.ttl(ptr.Ttl)}
 		r.Ptr = ptr.Name
 		answers = append(answers, r)
-		extras = append(extras, redis.getExtras(ptr.Name, z, zones, conn)...)
+		extras = append(extras, redis.getExtras(ptr.Name, z, zones, conn, "")...)
 	}
 	return
 }
@@ -321,7 +335,7 @@ func (redis *Redis) AXFR(z *record.Zone, zones []string, conn redisCon.Conn) (re
 			answers = append(answers, as...)
 			extras = append(extras, xs...)
 
-			as, xs = redis.AAAA(fqdnKey, z, zoneRecords)
+			as, xs = redis.AAAA(fqdnKey, z, zoneRecords, zones, conn)
 			answers = append(answers, as...)
 			extras = append(extras, xs...)
 
@@ -356,7 +370,7 @@ func (redis *Redis) AXFR(z *record.Zone, zones []string, conn redisCon.Conn) (re
 	return
 }
 
-func (redis *Redis) getExtras(name string, z *record.Zone, zones []string, conn redisCon.Conn, excluding ...string) []dns.RR {
+func (redis *Redis) getExtras(name string, z *record.Zone, zones []string, conn redisCon.Conn, extraType string, excluding ...string) []dns.RR {
 	location := redis.FindLocation(name, z)
 	if location == "" {
 		zoneName := plugin.Zones(zones).Matches(name)
@@ -376,12 +390,12 @@ func (redis *Redis) getExtras(name string, z *record.Zone, zones []string, conn 
 		if location == "" {
 			return nil
 		}
-		return redis.fillExtras(name, z2, location, zones, conn, excluding...)
+		return redis.fillExtras(name, z2, location, zones, conn, extraType, excluding...)
 	}
-	return redis.fillExtras(name, z, location, zones, conn, excluding...)
+	return redis.fillExtras(name, z, location, zones, conn, extraType, excluding...)
 }
 
-func (redis *Redis) fillExtras(name string, z *record.Zone, location string, zones []string, conn redisCon.Conn, excluding ...string) []dns.RR {
+func (redis *Redis) fillExtras(name string, z *record.Zone, location string, zones []string, conn redisCon.Conn, extraType string, excluding ...string) []dns.RR {
 	var (
 		zoneRecords *record.Records
 		answers     []dns.RR
@@ -393,10 +407,14 @@ func (redis *Redis) fillExtras(name string, z *record.Zone, location string, zon
 	if zoneRecords == nil {
 		return nil
 	}
-	a, _ := redis.A(name, z, zoneRecords, zones, conn)
-	answers = append(answers, a...)
-	aaaa, _ := redis.AAAA(name, z, zoneRecords)
-	answers = append(answers, aaaa...)
+	if extraType == "a" {
+		a, _ := redis.A(name, z, zoneRecords, zones, conn)
+		answers = append(answers, a...)
+	}
+	if extraType == "aaaa" {
+		aaaa, _ := redis.AAAA(name, z, zoneRecords, zones, conn)
+		answers = append(answers, aaaa...)
+	}
 	cname, _ := redis.CNAME(name, z, zoneRecords, zones, conn, excluding...)
 	answers = append(answers, cname...)
 	return answers
