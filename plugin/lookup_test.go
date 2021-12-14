@@ -64,6 +64,7 @@ func newRedisPlugin() (*Plugin, error) {
 	p.Redis.SetDefaultTtl(defaultTtl)
 	p.Redis.SetKeyPrefix("__CUST1:")
 	p.Redis.SetReferralPrefix("referral:")
+	//p.Redis.SetPassword("iAkUmLqq0u")
 	p.Redis.SetPassword("wae9v7Xt8e")
 	p.Redis.SetAddress("127.0.0.1:6379")
 	err := p.Redis.Connect()
@@ -123,9 +124,6 @@ func TestPlugin_Lookup(t *testing.T) {
 		}},
 		{name: "wwx.example.net. IN CNAME", tc: test.Case{Qname: "wwx.example.net.", Qtype: dns.TypeCNAME,
 			Answer: []dns.RR{test.CNAME("wwx.example.net. 4242 IN CNAME www.example.org.")},
-			Extra: []dns.RR{
-				test.A("www.example.org. 4242 IN A 93.184.216.34"),
-				test.AAAA("www.example.org. 4242 IN AAAA 2606:2800:220:1:248:1893:25c8:1946")},
 		}},
 		{name: "example.net. IN NS", tc: test.Case{Qname: "example.net.", Qtype: dns.TypeNS,
 			Answer: []dns.RR{

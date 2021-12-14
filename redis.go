@@ -18,7 +18,7 @@ import (
 const (
 	DefaultTtl            = 3600
 	MaxTransferLength     = 1000
-	DefaultReferralPrefix = "_referral:"
+	DefaultReferralPrefix = "referral:"
 )
 
 type Redis struct {
@@ -155,8 +155,8 @@ func (redis *Redis) A(name string, z *record.Zone, rec *record.Records, zones []
 			r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeCNAME,
 				Class: dns.ClassINET, Ttl: redis.ttl(cname.Ttl)}
 			r.Target = dns.Fqdn(cname.Host)
-			answers = append(answers, redis.getExtras(cname.Host, z, zones, conn, cname.Host)...)
 			answers = append(answers, r)
+			answers = append(answers, redis.getExtras(cname.Host, z, zones, conn, cname.Host)...)
 		}
 	}
 	return
@@ -176,7 +176,7 @@ func (redis Redis) AAAA(name string, _ *record.Zone, record *record.Records) (an
 	return
 }
 
-func (redis *Redis) CNAME(name string, z *record.Zone, record *record.Records, zones []string, conn redisCon.Conn, excluding ...string) (answers, extras []dns.RR) {
+func (redis *Redis) CNAME(name string, _ *record.Zone, record *record.Records, _ []string, _ redisCon.Conn, excluding ...string) (answers, extras []dns.RR) {
 	for _, cname := range record.CNAME {
 		skip := false
 		for _, e := range excluding {
@@ -193,8 +193,6 @@ func (redis *Redis) CNAME(name string, z *record.Zone, record *record.Records, z
 			Class: dns.ClassINET, Ttl: redis.ttl(cname.Ttl)}
 		r.Target = dns.Fqdn(cname.Host)
 		answers = append(answers, r)
-		excluding = append(excluding, cname.Host)
-		extras = append(extras, redis.getExtras(cname.Host, z, zones, conn, excluding...)...)
 	}
 	return
 }

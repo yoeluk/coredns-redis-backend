@@ -153,7 +153,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 	m := new(dns.Msg)
 	m.SetReply(r)
-	m.Authoritative, m.RecursionAvailable, m.Compress = true, false, true
+	m.Authoritative, m.RecursionAvailable, m.Compress = true, true, true
 	m.Answer = append(m.Answer, answers...)
 	m.Extra = append(m.Extra, extras...)
 	state.SizeAndDo(m)
