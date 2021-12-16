@@ -225,7 +225,7 @@ func (redis *Redis) TXT(name string, _ *record.Zone, record *record.Records) (an
 	return
 }
 
-func (redis *Redis) NS(name string, z *record.Zone, record *record.Records, zones []string, conn redisCon.Conn) (answers, extras []dns.RR) {
+func (redis *Redis) NS(name string, z *record.Zone, record *record.Records, zones []string, conn redisCon.Conn) (nss, extras []dns.RR) {
 	for _, ns := range record.NS {
 		if len(ns.Host) == 0 {
 			continue
@@ -234,8 +234,8 @@ func (redis *Redis) NS(name string, z *record.Zone, record *record.Records, zone
 		r.Hdr = dns.RR_Header{Name: dns.Fqdn(name), Rrtype: dns.TypeNS,
 			Class: dns.ClassINET, Ttl: redis.ttl(ns.Ttl)}
 		r.Ns = ns.Host
-		answers = append(answers, r)
-		extras = append(extras, redis.getExtras(ns.Host, z, zones, conn, "")...)
+		nss = append(nss, r)
+		extras = append(extras, redis.getExtras(ns.Host, z, zones, conn, "a")...)
 	}
 	return
 }
