@@ -59,18 +59,52 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	}()
 
 	var zoneName string
+
+	answers := make([]dns.RR, 0, 0)
+	extras := make([]dns.RR, 0, 10)
 	// When a DNS request arrives
 	// Check in Redis first, if domain not exist, go to next plugin
 	// Else continue to serve already loaded zones
 	conn = p.Redis.Pool.Get()
-	isBlocked, zoneName, err := p.Redis.CheckZoneInDb(qName)
+	found, zoneName, err := p.Redis.CheckZoneInDb(qName)
 	if err != nil {
 		fmt.Println(err)
 		return p.Redis.ErrorResponse(state, qName, dns.RcodeServerFailure, err)
-	} else if !isBlocked {
-		log.Debugf("zone not in backend: %s", qName)
-		// p.checkCache()
-		return p.Redis.ErrorResponse(state, qName, dns.RcodeNameError, err)
+	} else if !found {
+		log.Debugf("unable to load zone: %s, qtype: %d", qName, qType)
+		authorities := make([]dns.RR, 0, 0)
+		root := "pathfinder-dns.bluecat.io."
+		if qType == dns.TypeA && qName != "." {
+			exist, _ := p.Redis.CheckTldExist(qName)
+			if !exist {
+				log.Debugf("unknown TLD, sending domain error for: %d", qName, qType)
+				return p.Redis.ErrorResponse(state, zoneName, dns.RcodeNameError, nil)
+			}
+		}
+		rec := new(dns.NS)
+		rec.Hdr = dns.RR_Header{Name: dns.Fqdn(qName), Rrtype: dns.TypeNS,
+			Class: dns.ClassINET, Ttl: 300}
+		rec.Ns = root
+		switch qType {
+		case dns.TypeA:
+			log.Debugf("A query where zone not found; sending delegation for qname: %s", qName)
+			authorities = append(authorities, rec)
+		case dns.TypeNS:
+			log.Debugf("NS query where zone not found; synthesizing pathfinder NS record for qname: %s", qName)
+			answers = append(answers, rec)
+		default:
+			return p.Redis.ErrorResponse(state, zoneName, dns.RcodeNameError, nil)
+		}
+		m := new(dns.Msg)
+		m.SetReply(r)
+		m.Authoritative, m.RecursionAvailable, m.Compress = true, true, true
+		m.Answer = append(m.Answer, answers...)
+		m.Ns = append(m.Ns, authorities...)
+		m.Extra = append(m.Extra, extras...)
+		state.SizeAndDo(m)
+		m = state.Scrub(m)
+		_ = w.WriteMsg(m)
+		return dns.RcodeSuccess, nil
 	}
 
 	isReferral, err := p.Redis.CheckReferralNeeded(qName)
@@ -93,7 +127,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 		m := new(dns.Msg)
 		m.SetReply(r)
-		m.Authoritative, m.RecursionAvailable, m.Compress = true, false, true
+		m.Authoritative, m.RecursionAvailable, m.Compress = true, true, true
 		m.Ns = append(m.Ns, authority[:2]...)
 		m.Extra = append(m.Extra, extras...)
 		state.SizeAndDo(m)
@@ -104,7 +138,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 	zone := p.Redis.LoadZoneC(zoneName, false, conn)
 	if zone == nil {
-		fmt.Printf("unable to load zone: %s\n", zoneName)
+		log.Debugf("unable to load zone: %s", zoneName)
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeServerFailure, nil)
 	}
 
@@ -116,12 +150,9 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	location := p.Redis.FindLocation(qName, zone)
 	if location == "" {
 		log.Debugf("location %s not found for zone: %s", qName, zone)
-		// p.checkCache()
 		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeNameError, nil)
 	}
 
-	answers := make([]dns.RR, 0, 0)
-	extras := make([]dns.RR, 0, 10)
 	zoneRecords := p.Redis.LoadZoneRecordsC(location, zone, conn)
 	zoneRecords.MakeFqdn(zone.Name)
 

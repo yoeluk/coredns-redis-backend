@@ -652,6 +652,19 @@ func (redis *Redis) CheckReferralNeeded(name string) (bool, error) {
 	return zoneCount > 0, nil
 }
 
+func (redis *Redis) CheckTldExist(name string) (bool, error) {
+	conn := redis.Pool.Get()
+	defer conn.Close()
+
+	reply, err := conn.Do("EXISTS", "*"+name+redis.keySuffix)
+	zoneCount, err := redisCon.Int(reply, err)
+	if err != nil {
+		return false, err
+	}
+
+	return zoneCount > 0, nil
+}
+
 func (redis *Redis) LoadReferralZoneC(zone string, conn redisCon.Conn) (*record.Zone, *record.Records) {
 	var (
 		reply             interface{}
