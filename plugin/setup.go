@@ -107,6 +107,11 @@ func redisParse(c *caddy.Controller) (*redis.Redis, error) {
 						return redis.New(), c.ArgErr()
 					}
 					r.SetReferralPrefix(c.Val())
+				case "root_host":
+					if !c.NextArg() {
+						return redis.New(), c.ArgErr()
+					}
+					r.SetRootHost(c.Val())
 				default:
 					if c.Val() != "}" {
 						return redis.New(), c.Errf("unknown property '%s'", c.Val())

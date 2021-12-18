@@ -31,11 +31,14 @@ type Redis struct {
 	keyPrefix      string
 	keySuffix      string
 	referralPrefix string
+	RootHost       string
 	DefaultTtl     int
 }
 
 func New() *Redis {
 	var redis = Redis{}
+	redis.SetKeySuffix("")
+	redis.SetRootHost("pathfinder-dns.bluecat.io.")
 	redis.referralPrefix = DefaultReferralPrefix
 	return &redis
 }
@@ -83,6 +86,10 @@ func (redis *Redis) SetDefaultTtl(t int) {
 // SetReferralPrefix the referral prefix where referral queries are indicated
 func (redis *Redis) SetReferralPrefix(s string) {
 	redis.referralPrefix = s
+}
+
+func (redis *Redis) SetRootHost(s string) {
+	redis.RootHost = s
 }
 
 // Ping sends a "PING" command to the redis backend
@@ -652,17 +659,24 @@ func (redis *Redis) CheckReferralNeeded(name string) (bool, error) {
 	return zoneCount > 0, nil
 }
 
-func (redis *Redis) CheckTldExist(name string) (bool, error) {
+func (redis *Redis) CheckDomainExist(tld string) (bool, error) {
 	conn := redis.Pool.Get()
 	defer conn.Close()
-
-	reply, err := conn.Do("EXISTS", "*"+name+redis.keySuffix)
-	zoneCount, err := redisCon.Int(reply, err)
-	if err != nil {
-		return false, err
+	iter := 0
+	keys := make([]string, 0, 0)
+	for {
+		reply, err := conn.Do("SCAN", iter, "MATCH", redis.keyPrefix+"*"+tld+redis.keySuffix, "COUNT", 500)
+		arr, err := redisCon.Values(reply, err)
+		iter, err = redisCon.Int(arr[0], err)
+		keys, err = redisCon.Strings(arr[1], err)
+		if err != nil {
+			return false, err
+		}
+		if iter == 0 || len(keys) > 0 {
+			break
+		}
 	}
-
-	return zoneCount > 0, nil
+	return len(keys) > 0, nil
 }
 
 func (redis *Redis) LoadReferralZoneC(zone string, conn redisCon.Conn) (*record.Zone, *record.Records) {

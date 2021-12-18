@@ -58,6 +58,16 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		_ = conn.Close()
 	}()
 
+	opt := r.IsEdns0()
+
+	for _, e := range opt.Option {
+		switch e.(type) {
+		case *dns.EDNS0_SUBNET:
+			log.Debugf("ECS toString: %s", e.String())
+		default:
+		}
+	}
+
 	var zoneName string
 
 	answers := make([]dns.RR, 0, 0)
@@ -73,18 +83,20 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	} else if !found {
 		log.Debugf("unable to load zone: %s, qtype: %d", qName, qType)
 		authorities := make([]dns.RR, 0, 0)
-		root := "pathfinder-dns.bluecat.io."
 		if qType == dns.TypeA && qName != "." {
-			exist, _ := p.Redis.CheckTldExist(qName)
-			if !exist {
-				log.Debugf("unknown TLD, sending domain error for: %d", qName, qType)
+			exist, err := p.Redis.CheckDomainExist(qName)
+			if !exist && err == nil {
+				log.Debugf("unknown domain, sending domain error for: %s, with type: %d", qName, qType)
 				return p.Redis.ErrorResponse(state, zoneName, dns.RcodeNameError, nil)
+			} else if err != nil {
+				log.Error("got an error searching for tld: %s\n", err.Error())
+				return p.Redis.ErrorResponse(state, qName, dns.RcodeServerFailure, err)
 			}
 		}
 		rec := new(dns.NS)
 		rec.Hdr = dns.RR_Header{Name: dns.Fqdn(qName), Rrtype: dns.TypeNS,
 			Class: dns.ClassINET, Ttl: 300}
-		rec.Ns = root
+		rec.Ns = p.Redis.RootHost
 		switch qType {
 		case dns.TypeA:
 			log.Debugf("A query where zone not found; sending delegation for qname: %s", qName)
