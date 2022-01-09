@@ -11,7 +11,7 @@ import (
 	"github.com/coredns/coredns/request"
 	redisCon "github.com/gomodule/redigo/redis"
 	"github.com/miekg/dns"
-	redis "github.com/nvlong17/redis"
+	"github.com/nvlong17/redis"
 	"github.com/nvlong17/redis/record"
 )
 

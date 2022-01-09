@@ -665,7 +665,7 @@ func (redis *Redis) CheckDomainExist(tld string) (bool, error) {
 	iter := 0
 	keys := make([]string, 0, 0)
 	for {
-		reply, err := conn.Do("SCAN", iter, "MATCH", redis.keyPrefix+"*"+tld+redis.keySuffix, "COUNT", 500)
+		reply, err := conn.Do("SCAN", iter, "MATCH", redis.keyPrefix+"*"+tld+redis.keySuffix, "COUNT", 250)
 		arr, err := redisCon.Values(reply, err)
 		iter, err = redisCon.Int(arr[0], err)
 		keys, err = redisCon.Strings(arr[1], err)
@@ -745,24 +745,7 @@ func (redis *Redis) CheckZoneInDb(name string) (bool, string, error) {
 	return zoneCount > 0, zoneName, nil
 }
 
-// LoadAllZoneNames returns all zone names saved in the backend
-func (redis *Redis) LoadAllZoneNames() ([]string, error) {
-	conn := redis.Pool.Get()
-	defer conn.Close()
-
-	reply, err := conn.Do("KEYS", redis.keyPrefix+"*"+redis.keySuffix)
-	zones, err := redisCon.Strings(reply, err)
-	if err != nil {
-		return nil, err
-	}
-	for i := range zones {
-		zones[i] = strings.TrimPrefix(zones[i], redis.keyPrefix)
-		zones[i] = strings.TrimSuffix(zones[i], redis.keySuffix)
-	}
-	return zones, nil
-}
-
-// LoadZoneNames calls LoadZoneNamesC with a new redis connection
+//LoadZoneNames calls LoadZoneNamesC with a new redis connection
 func (redis *Redis) LoadZoneNames(name string) ([]string, error, bool) {
 	conn := redis.Pool.Get()
 	defer conn.Close()
