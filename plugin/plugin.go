@@ -61,10 +61,8 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	opt := r.IsEdns0()
 
 	for _, e := range opt.Option {
-		switch e.(type) {
-		case *dns.EDNS0_SUBNET:
-			log.Debugf("ECS toString: %s", e.String())
-		default:
+		if subnet, ok := e.(*dns.EDNS0_SUBNET); ok {
+			log.Debugf("the client subnet/ip, %s", subnet.Address.String())
 		}
 	}
 
@@ -99,7 +97,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		rec.Ns = p.Redis.RootHost
 		switch qType {
 		case dns.TypeA:
-			log.Debugf("A query where zone not found; sending delegation for qname: %s", qName)
+			log.Debugf("A query where zone not found; sending private-dns referral for qname: %s", qName)
 			authorities = append(authorities, rec)
 		case dns.TypeNS:
 			log.Debugf("NS query where zone not found; synthesizing pathfinder NS record for qname: %s", qName)
@@ -145,6 +143,9 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		state.SizeAndDo(m)
 		m = state.Scrub(m)
 		_ = w.WriteMsg(m)
+
+		log.Debugf("A referral is configured for this record; sending custom referral for qname: %s", qName)
+
 		return dns.RcodeSuccess, nil
 	}
 
