@@ -79,12 +79,12 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		fmt.Println(err)
 		return p.Redis.ErrorResponse(state, qName, dns.RcodeServerFailure, err)
 	} else if !found {
-		log.Debugf("unable to load zone: %s, qtype: %d", qName, qType)
+		log.Debugf("unable to load zone: %s, qtype: %s", qName, dns.Type(qType))
 		authorities := make([]dns.RR, 0, 0)
 		if qType == dns.TypeA && qName != "." {
 			exist, err := p.Redis.CheckDomainExist(qName)
 			if !exist && err == nil {
-				log.Debugf("unknown domain, sending domain error for: %s, with type: %d", qName, qType)
+				log.Debugf("unknown domain, sending domain error for: %s, with type: %s", qName, dns.Type(qType))
 				return p.Redis.ErrorResponse(state, zoneName, dns.RcodeNameError, nil)
 			} else if err != nil {
 				log.Error("got an error searching for tld: %s\n", err.Error())
@@ -97,7 +97,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		rec.Ns = p.Redis.RootHost
 		switch qType {
 		case dns.TypeA:
-			log.Debugf("A query where zone not found; sending private-dns referral for qname: %s", qName)
+			log.Debugf("A query where zone not found; sending referral for qname: %s with pathfinder-dns as authority", qName)
 			authorities = append(authorities, rec)
 		case dns.TypeNS:
 			log.Debugf("NS query where zone not found; synthesizing pathfinder NS record for qname: %s", qName)
@@ -144,7 +144,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		m = state.Scrub(m)
 		_ = w.WriteMsg(m)
 
-		log.Debugf("A referral is configured for this record; sending custom referral for qname: %s", qName)
+		log.Debugf("A referral is configured for this record; sending referral for qname: %s with configured authority", qName)
 
 		return dns.RcodeSuccess, nil
 	}
