@@ -3,7 +3,6 @@ package redis
 import (
 	"github.com/nvlong17/redis/record"
 	"net"
-	"testing"
 )
 
 const (
@@ -50,42 +49,10 @@ func newRedis() (*Redis, error) {
 
 	r := New()
 	r.SetDefaultTtl(minTtl)
-	r.SetPassword("wae9v7Xt8e")
+	r.SetPassword("FADCMe49wP")
 	r.SetAddress("127.0.0.1:6379")
 	if err := r.Connect(); err != nil {
 		return nil, err
 	}
 	return r, nil
-}
-
-func TestRedis_SaveZone(t *testing.T) {
-
-	redis, err := newRedis()
-	if err != nil {
-		t.Error(err)
-	}
-
-	for _, z := range zones {
-		zone := record.NewZone(z, record.SOA{
-			Ttl:     testTtl,
-			MName:   "ns1." + z + ".",
-			RName:   "hostmaster." + z,
-			Serial:  2006010201,
-			Refresh: 3600,
-			Retry:   1800,
-			Expire:  10000,
-			MinTtl:  300,
-		})
-
-		for _, tr := range testRecords {
-			zone.Add(tr.l, tr.r)
-		}
-
-		t.Run(zone.Name, func(t *testing.T) {
-
-			if err := redis.SaveZone(*zone); err != nil {
-				t.Errorf("SaveZone() error = %v", err)
-			}
-		})
-	}
 }
