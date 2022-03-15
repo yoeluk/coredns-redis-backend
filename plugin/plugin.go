@@ -97,7 +97,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	zoneKeys, found, err := p.Redis.CheckZoneInDb(qName) // retrieve all the zone keys with ids for qName
 	if err != nil {
 		fmt.Println(err)
-		return p.Redis.ErrorResponse(state, qName, dns.RcodeServerFailure, err)
+		return p.Redis.ErrorResponse(state, dns.RcodeServerFailure, err)
 	} else if !found {
 		log.Debugf("unable to load zone: %s, qtype: %s", qName, dns.Type(qType))
 		authorities := make([]dns.RR, 0, 0)
@@ -105,10 +105,10 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 			_, exist, err := p.Redis.CheckDomainExist(qName, "*")
 			if !exist && err == nil {
 				log.Debugf("unknown domain, sending domain error for: %s, with type: %s", qName, dns.Type(qType))
-				return p.Redis.ErrorResponse(state, qName, dns.RcodeNameError, nil)
+				return p.Redis.ErrorResponse(state, dns.RcodeNameError, nil)
 			} else if err != nil {
 				log.Error("got an error searching for tld:")
-				return p.Redis.ErrorResponse(state, qName, dns.RcodeServerFailure, err)
+				return p.Redis.ErrorResponse(state, dns.RcodeServerFailure, err)
 			}
 		}
 		rec := new(dns.NS)
@@ -123,7 +123,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 			log.Debugf("NS query where zone not found; synthesizing pathfinder NS record for qname: %s", qName)
 			answers = append(answers, rec)
 		default:
-			return p.Redis.ErrorResponse(state, qName, dns.RcodeNameError, nil)
+			return p.Redis.ErrorResponse(state, dns.RcodeNameError, nil)
 		}
 		m := new(dns.Msg)
 		m.SetReply(r)
@@ -182,13 +182,13 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	zone := p.Redis.LoadZoneC(zoneName, zoneId, false, conn)
 	if zone == nil {
 		log.Debugf("unable to load zone: %s", zoneName)
-		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeServerFailure, nil)
+		return p.Redis.ErrorResponse(state, dns.RcodeServerFailure, nil)
 	}
 
 	location := p.Redis.FindLocation(qName, zone)
 	if location == "" {
 		log.Debugf("location %s not found for zone: %s", qName, zone)
-		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeNameError, nil)
+		return p.Redis.ErrorResponse(state, dns.RcodeNameError, nil)
 	}
 
 	zoneRecords := p.Redis.LoadZoneRecordsC(location, zoneId, zone, conn)
@@ -217,7 +217,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		answers, extras = p.Redis.CAA(qName, zone, zoneRecords)
 
 	default:
-		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeNotImplemented, nil)
+		return p.Redis.ErrorResponse(state, dns.RcodeNotImplemented, nil)
 	}
 
 	m := new(dns.Msg)
