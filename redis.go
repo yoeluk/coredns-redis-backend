@@ -114,7 +114,7 @@ func (redis *Redis) Ping() (bool, error) {
 	return true, nil
 }
 
-func (redis *Redis) ErrorResponse(state request.Request, zone string, rcode int, err error) (int, error) {
+func (redis *Redis) ErrorResponse(state request.Request, rcode int, err error) (int, error) {
 	m := new(dns.Msg)
 	m.SetRcode(state.Req, rcode)
 	m.Authoritative, m.RecursionAvailable, m.Compress = true, false, true
@@ -504,32 +504,13 @@ func (redis *Redis) LoadZoneRecordsC(key string, zoneId string, z *record.Zone, 
 	if err != nil {
 		return nil
 	}
-	r := new(record.SerdeRecords)
+	r := new(record.Records)
 	err = json.Unmarshal([]byte(val), r)
-	records := record.Records{
-		SOA:   redis.withSOA(r.SOA),
-		A:     r.A,
-		AAAA:  r.AAAA,
-		TXT:   r.TXT,
-		CNAME: r.CNAME,
-		NS:    r.NS,
-		MX:    r.MX,
-		SRV:   r.SRV,
-		PTR:   r.PTR,
-		CAA:   r.CAA,
-	}
 	if err != nil {
 		fmt.Println("parse error : ", val, err)
 		return nil
 	}
-	return &records
-}
-
-func (redis *Redis) withSOA(soas []record.SOA) *record.SOA {
-	if len(soas) > 0 {
-		return &soas[0]
-	}
-	return nil
+	return r
 }
 
 // CheckReferralNeeded check if the qName needs to be referred to another authority
