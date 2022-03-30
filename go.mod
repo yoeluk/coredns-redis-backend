@@ -33,4 +33,4 @@ require (
 	google.golang.org/protobuf v1.28.0 // indirect
 )
 
-//replace github.com/yoeluk/coredns-redis-backend => ./
+replace github.com/yoeluk/coredns-redis-backend => ./
