@@ -1,7 +1,7 @@
 package redis
 
 import (
-	"github.com/nvlong17/redis/record"
+	"github.com/yoeluk/coredns-redis-backend/record"
 	"net"
 )
 

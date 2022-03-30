@@ -13,8 +13,8 @@ import (
 	"github.com/coredns/coredns/request"
 	redisCon "github.com/gomodule/redigo/redis"
 	"github.com/miekg/dns"
-	"github.com/yoeluk/coredns-redis"
-	_ "github.com/yoeluk/coredns-redis/record"
+	"github.com/yoeluk/coredns-redis-backend"
+	"github.com/yoeluk/coredns-redis-backend/record"
 )
 
 const name = "redis"

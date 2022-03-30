@@ -10,8 +10,8 @@ import (
 	"github.com/coredns/coredns/plugin"
 	"github.com/coredns/coredns/request"
 	"github.com/miekg/dns"
-	"github.com/yoeluk/coredns-redis/record"
-	"github.com/yoeluk/coredns-redis/vpc"
+	"github.com/yoeluk/coredns-redis-backend/record"
+	"github.com/yoeluk/coredns-redis-backend/vpc"
 
 	redisCon "github.com/gomodule/redigo/redis"
 )

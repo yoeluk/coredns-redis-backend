@@ -1,4 +1,4 @@
-module github.com/nvlong17/redis
+module github.com/yoeluk/coredns-redis-backend
 
 go 1.18
 
@@ -7,7 +7,7 @@ require (
 	github.com/coredns/coredns v1.9.1
 	github.com/gomodule/redigo v1.8.8
 	github.com/miekg/dns v1.1.47
-	github.com/yoeluk/coredns-redis v0.0.0-00010101000000-000000000000
+	github.com/yoeluk/coredns-redis-backend v1.1.2
 )
 
 require (
@@ -21,11 +21,11 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/prometheus/client_golang v1.12.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
-	github.com/prometheus/common v0.32.1 // indirect
+	github.com/prometheus/common v0.33.0 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
 	golang.org/x/net v0.0.0-20220325170049-de3da57026de // indirect
-	golang.org/x/sys v0.0.0-20220325203850-36772127a21f // indirect
+	golang.org/x/sys v0.0.0-20220330033206-e17cdc41300f // indirect
 	golang.org/x/text v0.3.7 // indirect
 	golang.org/x/tools v0.1.10 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
@@ -34,4 +34,4 @@ require (
 	google.golang.org/protobuf v1.28.0 // indirect
 )
 
-replace github.com/yoeluk/coredns-redis => ./
+replace github.com/yoeluk/coredns-redis-backend => ./
