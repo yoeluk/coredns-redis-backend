@@ -2,8 +2,8 @@ package plugin
 
 import (
 	"context"
-	"github.com/nvlong17/redis"
-	"github.com/nvlong17/redis/record"
+	"github.com/yoeluk/coredns-redis-backend"
+	"github.com/yoeluk/coredns-redis-backend/record"
 	"net"
 )
 

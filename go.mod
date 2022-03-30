@@ -7,7 +7,6 @@ require (
 	github.com/coredns/coredns v1.9.1
 	github.com/gomodule/redigo v1.8.8
 	github.com/miekg/dns v1.1.47
-	github.com/yoeluk/coredns-redis-backend v1.1.2
 )
 
 require (
@@ -34,4 +33,4 @@ require (
 	google.golang.org/protobuf v1.28.0 // indirect
 )
 
-replace github.com/yoeluk/coredns-redis-backend => ./
+//replace github.com/yoeluk/coredns-redis-backend => ./

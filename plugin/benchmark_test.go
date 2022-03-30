@@ -1,7 +1,7 @@
 package plugin
 
 import (
-	"github.com/nvlong17/redis/record"
+	"github.com/yoeluk/coredns-redis-backend/record"
 	"math/rand"
 	"net"
 	"testing"
