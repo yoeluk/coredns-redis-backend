@@ -7,6 +7,7 @@ require (
 	github.com/coredns/coredns v1.9.1
 	github.com/gomodule/redigo v1.8.8
 	github.com/miekg/dns v1.1.47
+	github.com/yoeluk/coredns-redis-backend v0.0.2
 )
 
 require (

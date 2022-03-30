@@ -47,7 +47,7 @@ func BenchmarkPlugin_HitA(b *testing.B) {
 		zone.Add(tr.l, tr.r)
 	}
 
-	err = plug.Redis.SaveZone(*zone)
+	//err = plug.Redis.SaveZone(*zone)
 	if err != nil {
 		b.Error(err)
 	}
@@ -101,7 +101,7 @@ func BenchmarkPlugin_MissA(b *testing.B) {
 		zone.Add(tr.l, tr.r)
 	}
 
-	err = plug.Redis.SaveZone(*zone)
+	//err = plug.Redis.SaveZone(*zone)
 	if err != nil {
 		b.Error(err)
 	}
@@ -150,7 +150,7 @@ func BenchmarkPlugin_HitMX(b *testing.B) {
 		zone.Add(tr.l, tr.r)
 	}
 
-	err = plug.Redis.SaveZone(*zone)
+	//err = plug.Redis.SaveZone(*zone)
 	if err != nil {
 		b.Error(err)
 	}
@@ -205,7 +205,7 @@ func BenchmarkPlugin_MissMX(b *testing.B) {
 		zone.Add(tr.l, tr.r)
 	}
 
-	err = plug.Redis.SaveZone(*zone)
+	//err = plug.Redis.SaveZone(*zone)
 	if err != nil {
 		b.Error(err)
 	}

@@ -2,8 +2,8 @@ package record
 
 import (
 	"fmt"
+	"github.com/coredns/coredns/plugin/pkg/log"
 	"github.com/miekg/dns"
-	"log"
 	"sort"
 	"strings"
 )
@@ -36,6 +36,60 @@ type Records struct {
 	SRV   []SRV   `json:"SRV,omitempty"`
 	PTR   []PTR   `json:"PTR,omitempty"`
 	CAA   []CAA   `json:"CAA,omitempty"`
+}
+
+func (r *Records) Content() string {
+	var content string
+	if r.SOA != nil {
+		content += "@SOA "
+	}
+
+	if r.A != nil && len(r.A) > 0 {
+		content += "@A "
+	}
+
+	if r.AAAA != nil && len(r.AAAA) > 0 {
+		content += "@AAAA "
+	}
+
+	if r.CNAME != nil && len(r.CNAME) > 0 {
+		content += "@CNAME "
+	}
+
+	if r.TXT != nil && len(r.TXT) > 0 {
+		content += "@TXT "
+	}
+
+	if r.NS != nil && len(r.NS) > 0 {
+		content += "@NS "
+	}
+
+	if r.MX != nil && len(r.MX) > 0 {
+		content += "@MX "
+	}
+
+	if r.SRV != nil && len(r.SRV) > 0 {
+		content += "@SRV "
+	}
+
+	if r.PTR != nil && len(r.PTR) > 0 {
+		content += "@PTR "
+	}
+
+	if r.CAA != nil && len(r.CAA) > 0 {
+		content += "@CAA "
+	}
+	return content
+
+}
+
+func (r *Records) TypeExist(qType string) bool {
+	content := r.Content()
+	exist := strings.Contains(content, "@"+qType+" ")
+	if exist {
+		log.Debugf("type %s exist in content %s", qType, content)
+	}
+	return exist
 }
 
 // appends the zoneName to values which are not fully qualified domain names

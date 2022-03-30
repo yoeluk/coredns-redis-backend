@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net"
 	"strings"
 	"sync"
@@ -177,11 +178,13 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	var vpcNetStr = ""
 	var location = ""
 	var zone *record.Zone
-	for _, zk := range zoneKeys {
+	var zoneRecords *record.Records
+	var qTypeExist bool
+	for _, zk := range shuffleKeys(zoneKeys) {
 		zp, err := p.MakeZoneIdPair(zk)
 		zid := zp.ZoneId
 		zn := zp.ZoneName
-		found := false
+		var found bool
 		vpcAssocs, err := p.Redis.GetVpcZoneAssociation(zid, conn)
 		for _, as := range *vpcAssocs {
 			if err != nil {
@@ -190,24 +193,32 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 			}
 
 			log.Debugf("loading zones for zone: %s, with zoneId: %s", zn, zid)
-			zone = p.Redis.LoadZoneC(zn, zid, false, conn)
-			if zone == nil {
+			z := p.Redis.LoadZoneC(zn, zid, false, conn)
+			if z == nil {
 				log.Debugf("unable to load zone: %s", zn)
-				return p.Redis.ErrorResponse(state, dns.RcodeServerFailure, nil)
+				continue
 			}
 
-			location = p.Redis.FindLocation(qName, zone)
-			if location == "" {
-				log.Debugf("location %s not found for zone: %s", qName, zone)
-				return p.Redis.ErrorResponse(state, dns.RcodeNameError, nil)
+			l := p.Redis.FindLocation(qName, z)
+			if l == "" {
+				log.Debugf("location %s not found for zone: %s", qName, z)
+				continue
 			}
 
-			_, vpcNet, err := net.ParseCIDR(as.VpcCidr)
-			zoneIdPair = zp
-			vpcNetStr = vpcNet.String()
-			if err == nil && vpcNet.Contains(ecsIp) {
-				found = true
-				break
+			zr := p.Redis.LoadZoneRecordsC(l, zid, z, conn)
+			exists := zr.TypeExist(dns.Type(qType).String())
+			if exists {
+				zoneIdPair = zp
+				zone = z
+				location = l
+				qTypeExist = exists
+				zoneRecords = zr
+				_, vpcNet, err := net.ParseCIDR(as.VpcCidr)
+				vpcNetStr = vpcNet.String()
+				if err == nil && vpcNet.Contains(ecsIp) {
+					found = true
+					break
+				}
 			}
 		}
 		if found {
@@ -215,17 +226,14 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		}
 	}
 
-	if err != nil || zoneIdPair == nil {
-		log.Debugf(err.Error())
-		return p.Redis.ErrorResponse(state, dns.RcodeNameError, nil)
+	if err != nil || zoneIdPair == nil || location == "" || !qTypeExist {
+		log.Debugf("couldn't find the record")
+		return p.Redis.ErrorResponse(state, dns.RcodeNameError, err)
 	}
 
 	log.Debugf("using zoneId %s with vpcCidr % for client subnet (ip) %s", zoneIdPair.ZoneId, vpcNetStr, ecsIp)
 
 	zoneId := zoneIdPair.ZoneId
-
-	zoneRecords := p.Redis.LoadZoneRecordsC(location, zoneId, zone, conn)
-
 	zoneRecords.MakeFqdn(zone.Name)
 
 	switch qType {
@@ -263,4 +271,12 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	m = state.Scrub(m)
 	_ = w.WriteMsg(m)
 	return dns.RcodeSuccess, nil
+}
+
+func shuffleKeys(ks []string) []string {
+	rand.Seed(time.Now().Unix())
+	rand.Shuffle(len(ks), func(i, j int) {
+		ks[i], ks[j] = ks[j], ks[i]
+	})
+	return ks
 }
