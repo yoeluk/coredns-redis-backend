@@ -10,7 +10,8 @@ import (
 	"github.com/coredns/coredns/plugin"
 	"github.com/coredns/coredns/request"
 	"github.com/miekg/dns"
-	"github.com/nvlong17/redis/record"
+	"github.com/yoeluk/coredns-redis/record"
+	"github.com/yoeluk/coredns-redis/vpc"
 
 	redisCon "github.com/gomodule/redigo/redis"
 )
@@ -18,6 +19,7 @@ import (
 const (
 	DefaultTtl            = 3600
 	DefaultReferralPrefix = "referral:"
+	DefaultVpcPrefix      = "__vpc:"
 )
 
 type Redis struct {
@@ -30,6 +32,7 @@ type Redis struct {
 	keyPrefix      string
 	keySuffix      string
 	referralPrefix string
+	VpcPrefix      string
 	RootHost       string
 	DefaultTtl     int
 }
@@ -39,6 +42,7 @@ func New() *Redis {
 	redis.SetKeySuffix("")
 	redis.SetRootHost("pathfinder-dns.bluecat.io.")
 	redis.referralPrefix = DefaultReferralPrefix
+	redis.SetVpcPrefix(DefaultVpcPrefix)
 	return &redis
 }
 
@@ -93,6 +97,10 @@ func (redis *Redis) GetReferralPrefix() string {
 
 func (redis *Redis) SetRootHost(s string) {
 	redis.RootHost = s
+}
+
+func (redis *Redis) SetVpcPrefix(s string) {
+	redis.VpcPrefix = s
 }
 
 // Ping sends a "PING" command to the redis backend
@@ -452,6 +460,23 @@ func (redis *Redis) Connect() error {
 	return nil
 }
 
+func (redis *Redis) GetVpcZoneAssociation(zoneId string, conn redisCon.Conn) (*[]vpc.VpcZoneAssociation, error) {
+	var (
+		reply    interface{}
+		err      error
+		value    string
+		vpcAssoc []vpc.VpcZoneAssociation
+	)
+	reply, err = conn.Do("GET", redis.VpcPrefix+redis.keyPrefix+zoneId)
+	value, err = redisCon.String(reply, err)
+	vpcAssoc = make([]vpc.VpcZoneAssociation, 0, 0)
+	err = json.Unmarshal([]byte(value), &vpcAssoc)
+	if err == nil {
+		return &vpcAssoc, nil
+	}
+	return &vpcAssoc, err
+}
+
 // LoadZoneC loads a zone from the backend. The loading of the records is optional, if omitted
 // the result contains only the locations in the zone.
 func (redis *Redis) LoadZoneC(zone string, zoneId string, withRecord bool, conn redisCon.Conn) *record.Zone {
@@ -518,7 +543,7 @@ func (redis *Redis) CheckReferralNeeded(name string) (bool, error) {
 	conn := redis.Pool.Get()
 	defer conn.Close()
 
-	reply, err := conn.Do("EXISTS", redis.keyPrefix+redis.referralPrefix+name)
+	reply, err := conn.Do("EXISTS", redis.referralPrefix+redis.keyPrefix+name)
 	zoneCount, err := redisCon.Int(reply, err)
 	if err != nil {
 		return false, err
@@ -549,6 +574,24 @@ func (redis *Redis) CheckDomainExist(domain string, wildcard string) ([]string, 
 		}
 	}
 	return keys, len(keys) > 0, nil
+}
+
+func (redis *Redis) CheckHostname(redisKey string, hostname string) (bool, error) {
+	conn := redis.Pool.Get()
+	defer conn.Close()
+
+	var (
+		reply interface{}
+		err   error
+		value string
+	)
+
+	reply, err = conn.Do("HGET", redisKey, hostname)
+	value, err = redisCon.String(reply, err)
+	if err != nil {
+		return false, err
+	}
+	return len(value) > 0, nil
 }
 
 func (redis *Redis) LoadReferralZoneC(zone string, conn redisCon.Conn) (*record.Zone, *record.Records) {
@@ -605,14 +648,21 @@ func (redis *Redis) CheckZoneInDb(name string) ([]string, bool, error) {
 	names := strings.Split(name, ".")
 	zoneName := name
 
+	hostname := names[0]
+
 	log.Debugf("checking for %s in db", zoneName)
 
 	keys = make([]string, 0, 0)
 	for _, s := range names {
 		reply, _, err := redis.CheckDomainExist(zoneName, "")
-		log.Debugf("CheckDomainExist for %s in db returned %s", zoneName, strings.Join(reply, "\n"))
 		if len(reply) > 0 {
-			keys = append(keys, reply...)
+			for _, k := range reply {
+				hasHost, err := redis.CheckHostname(k, hostname)
+				if err == nil && hasHost {
+					log.Debugf("CheckDomainExist for %s in db found %s has hostname %s", zoneName, k, hostname)
+					keys = append(keys, k)
+				}
+			}
 			break
 		}
 		if err != nil || len(zoneName) <= len(s+".") {

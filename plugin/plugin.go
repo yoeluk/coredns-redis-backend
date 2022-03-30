@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -12,8 +13,8 @@ import (
 	"github.com/coredns/coredns/request"
 	redisCon "github.com/gomodule/redigo/redis"
 	"github.com/miekg/dns"
-	"github.com/nvlong17/redis"
-	_ "github.com/nvlong17/redis/record"
+	"github.com/yoeluk/coredns-redis"
+	_ "github.com/yoeluk/coredns-redis/record"
 )
 
 const name = "redis"
@@ -47,7 +48,7 @@ func (p *Plugin) Ready() bool {
 	return ok
 }
 
-func (p *Plugin) MakeZoneIdPair(zoneKey string) (ZoneIdPair, error) {
+func (p *Plugin) MakeZoneIdPair(zoneKey string) (*ZoneIdPair, error) {
 	parts := strings.Split(zoneKey, ":")
 	zoneParts := make([]string, 0, 0)
 	for _, part := range parts {
@@ -57,10 +58,10 @@ func (p *Plugin) MakeZoneIdPair(zoneKey string) (ZoneIdPair, error) {
 	}
 	if len(zoneParts) == 2 {
 		log.Debugf("the zoneParts are: %s", strings.Join(zoneParts, ", "))
-		zoneIdPair := ZoneIdPair{zoneParts[0], zoneParts[1]}
+		zoneIdPair := &ZoneIdPair{zoneParts[0], zoneParts[1]}
 		return zoneIdPair, nil
 	}
-	return ZoneIdPair{}, fmt.Errorf("error construction zonePairId from %s", zoneKey)
+	return &ZoneIdPair{}, fmt.Errorf("error construction zonePairId from %s", zoneKey)
 }
 
 func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg) (int, error) {
@@ -82,9 +83,12 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 	opt := r.IsEdns0()
 
+	var ecsIp net.IP
+
 	for _, e := range opt.Option {
 		if subnet, ok := e.(*dns.EDNS0_SUBNET); ok {
 			log.Debugf("the client subnet/ip, %s", subnet.Address.String())
+			ecsIp = subnet.Address.To4()
 		}
 	}
 
@@ -141,14 +145,14 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	//
 	//if err != nil {
 	//	fmt.Println(err)
-	//	return p.Redis.ErrorResponse(state, qName, dns.RcodeServerFailure, err)
+	//	return p.Redis.ErrorResponse(state, dns.RcodeServerFailure, err)
 	//} else if isReferral {
 	//
 	//	zone, records := p.Redis.LoadReferralZoneC(qName, conn)
 	//
 	//	if zone == nil {
-	//		fmt.Printf("unable to load zone: %s\n", zoneName)
-	//		return p.Redis.ErrorResponse(state, zoneName, dns.RcodeServerFailure, nil)
+	//		fmt.Printf("unable to load zone for question: %s\n", qName)
+	//		return p.Redis.ErrorResponse(state, dns.RcodeServerFailure, nil)
 	//	}
 	//
 	//	authority := make([]dns.RR, 0, 10)
@@ -169,29 +173,59 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	//	return dns.RcodeSuccess, nil
 	//}
 
-	zoneIdPair, err := p.MakeZoneIdPair(zoneKeys[0])
+	var zoneIdPair *ZoneIdPair
+	var vpcNetStr = ""
+	var location = ""
+	var zone *record.Zone
+	for _, zk := range zoneKeys {
+		zp, err := p.MakeZoneIdPair(zk)
+		zid := zp.ZoneId
+		zn := zp.ZoneName
+		found := false
+		vpcAssocs, err := p.Redis.GetVpcZoneAssociation(zid, conn)
+		for _, as := range *vpcAssocs {
+			if err != nil {
+				log.Debugf(err.Error())
+				continue
+			}
 
-	if err != nil {
+			log.Debugf("loading zones for zone: %s, with zoneId: %s", zn, zid)
+			zone = p.Redis.LoadZoneC(zn, zid, false, conn)
+			if zone == nil {
+				log.Debugf("unable to load zone: %s", zn)
+				return p.Redis.ErrorResponse(state, dns.RcodeServerFailure, nil)
+			}
+
+			location = p.Redis.FindLocation(qName, zone)
+			if location == "" {
+				log.Debugf("location %s not found for zone: %s", qName, zone)
+				return p.Redis.ErrorResponse(state, dns.RcodeNameError, nil)
+			}
+
+			_, vpcNet, err := net.ParseCIDR(as.VpcCidr)
+			zoneIdPair = zp
+			vpcNetStr = vpcNet.String()
+			if err == nil && vpcNet.Contains(ecsIp) {
+				found = true
+				break
+			}
+		}
+		if found {
+			break
+		}
+	}
+
+	if err != nil || zoneIdPair == nil {
 		log.Debugf(err.Error())
-	}
-
-	zoneName := zoneIdPair.ZoneName
-	zoneId := zoneIdPair.ZoneId
-
-	log.Debugf("loading zones for zone: %s, with zoneId: %s", zoneName, zoneId)
-	zone := p.Redis.LoadZoneC(zoneName, zoneId, false, conn)
-	if zone == nil {
-		log.Debugf("unable to load zone: %s", zoneName)
-		return p.Redis.ErrorResponse(state, dns.RcodeServerFailure, nil)
-	}
-
-	location := p.Redis.FindLocation(qName, zone)
-	if location == "" {
-		log.Debugf("location %s not found for zone: %s", qName, zone)
 		return p.Redis.ErrorResponse(state, dns.RcodeNameError, nil)
 	}
 
+	log.Debugf("using zoneId %s with vpcCidr % for client subnet (ip) %s", zoneIdPair.ZoneId, vpcNetStr, ecsIp)
+
+	zoneId := zoneIdPair.ZoneId
+
 	zoneRecords := p.Redis.LoadZoneRecordsC(location, zoneId, zone, conn)
+
 	zoneRecords.MakeFqdn(zone.Name)
 
 	switch qType {
