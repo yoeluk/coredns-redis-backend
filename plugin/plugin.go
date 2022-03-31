@@ -99,11 +99,11 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	// Check in Redis first, if domain not exist, go to next plugin
 	// Else continue to serve already loaded zones
 	conn = p.Redis.Pool.Get()
-	zoneKeys, found, err := p.Redis.CheckZoneInDb(qName) // retrieve all the zone keys with ids for qName
+	zoneKeys, foundKeys, err := p.Redis.CheckZoneInDb(qName, dns.Type(qType).String()) // retrieve all the zone keys with ids for qName
 	if err != nil {
 		fmt.Println(err)
 		return p.Redis.ErrorResponse(state, dns.RcodeServerFailure, err)
-	} else if !found {
+	} else if !foundKeys {
 		log.Debugf("unable to load zone: %s, qtype: %s", qName, dns.Type(qType))
 		authorities := make([]dns.RR, 0, 0)
 		if qType == dns.TypeA && qName != "." {
@@ -122,10 +122,10 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 		rec.Ns = p.Redis.RootHost
 		switch qType {
 		case dns.TypeA:
-			log.Debugf("A query where zone not found; sending referral for qname: %s with pathfinder-dns as authority", qName)
+			log.Debugf("A query where zone for query % was not found but found zones containing it; sending referral for with pathfinder-dns as authority", qName)
 			authorities = append(authorities, rec)
 		case dns.TypeNS:
-			log.Debugf("NS query where zone not found; synthesizing pathfinder NS record for qname: %s", qName)
+			log.Debugf("NS query where zone for query % was not found; synthesizing pathfinder NS record for qname: %s", qName)
 			answers = append(answers, rec)
 		default:
 			return p.Redis.ErrorResponse(state, dns.RcodeNameError, nil)
@@ -175,15 +175,15 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	//}
 
 	var zoneIdPair *ZoneIdPair
-	var vpcNetStr = ""
-	var location = ""
+	var vpcNetStr string
+	var location string
 	var zone *record.Zone
 	var zoneRecords *record.Records
 	var qTypeExist bool
 	for _, zk := range shuffleKeys(zoneKeys) {
-		zp, err := p.MakeZoneIdPair(zk)
-		zid := zp.ZoneId
-		zn := zp.ZoneName
+		zip, err := p.MakeZoneIdPair(zk)
+		zid := zip.ZoneId
+		zn := zip.ZoneName
 		var found bool
 		vpcAssocs, err := p.Redis.GetVpcZoneAssociation(zid, conn)
 		for _, as := range *vpcAssocs {
@@ -201,14 +201,14 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 
 			l := p.Redis.FindLocation(qName, z)
 			if l == "" {
-				log.Debugf("location %s not found for zone: %s", qName, z)
+				log.Debugf("location %s not foundKeys for zone: %s", qName, z)
 				continue
 			}
 
 			zr := p.Redis.LoadZoneRecordsC(l, zid, z, conn)
 			exists := zr.TypeExist(dns.Type(qType).String())
 			if exists {
-				zoneIdPair = zp
+				zoneIdPair = zip
 				zone = z
 				location = l
 				qTypeExist = exists

@@ -636,7 +636,7 @@ func (redis *Redis) LoadReferralZoneC(zone string, conn redisCon.Conn) (*record.
 }
 
 // CheckZoneInDb check if zone names is saved in the backend
-func (redis *Redis) CheckZoneInDb(name string) ([]string, bool, error) {
+func (redis *Redis) CheckZoneInDb(name string, qType string) ([]string, bool, error) {
 
 	var (
 		keys []string
@@ -648,7 +648,10 @@ func (redis *Redis) CheckZoneInDb(name string) ([]string, bool, error) {
 	names := strings.Split(name, ".")
 	zoneName := name
 
-	hostname := names[0]
+	recordName := names[0]
+	if qType == "SOA" {
+		recordName = "@"
+	}
 
 	log.Debugf("checking for %s in db", zoneName)
 
@@ -657,9 +660,9 @@ func (redis *Redis) CheckZoneInDb(name string) ([]string, bool, error) {
 		reply, _, err := redis.CheckDomainExist(zoneName, "")
 		if len(reply) > 0 {
 			for _, k := range reply {
-				hasHost, err := redis.CheckHostname(k, hostname)
+				hasHost, err := redis.CheckHostname(k, recordName)
 				if err == nil && hasHost {
-					log.Debugf("CheckDomainExist for %s in db found %s has hostname %s", zoneName, k, hostname)
+					log.Debugf("CheckDomainExist for %s in db found %s has hostname %s", zoneName, k, recordName)
 					keys = append(keys, k)
 				}
 			}
