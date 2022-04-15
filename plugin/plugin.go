@@ -174,57 +174,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	//	return dns.RcodeSuccess, nil
 	//}
 
-	var zoneIdPair *ZoneIdPair
-	var vpcNetStr string
-	var location string
-	var zone *record.Zone
-	var zoneRecords *record.Records
-	var qTypeExist bool
-	for _, zk := range shuffleKeys(zoneKeys) {
-		zip, err := p.MakeZoneIdPair(zk)
-		zid := zip.ZoneId
-		zn := zip.ZoneName
-		var found bool
-		vpcAssocs, err := p.Redis.GetVpcZoneAssociation(zid, conn)
-		for _, as := range *vpcAssocs {
-			if err != nil {
-				log.Debugf(err.Error())
-				continue
-			}
-
-			log.Debugf("loading zones for zone: %s, with zoneId: %s", zn, zid)
-			z := p.Redis.LoadZoneC(zn, zid, false, conn)
-			if z == nil {
-				log.Debugf("unable to load zone: %s", zn)
-				continue
-			}
-
-			l := p.Redis.FindLocation(qName, z)
-			if l == "" {
-				log.Debugf("location %s not foundKeys for zone: %s", qName, z)
-				continue
-			}
-
-			zr := p.Redis.LoadZoneRecordsC(l, zid, z, conn)
-			exists := zr.TypeExist(dns.Type(qType).String())
-			if exists {
-				zoneIdPair = zip
-				zone = z
-				location = l
-				qTypeExist = exists
-				zoneRecords = zr
-				_, vpcNet, err := net.ParseCIDR(as.VpcCidr)
-				vpcNetStr = vpcNet.String()
-				if err == nil && vpcNet.Contains(ecsIp) {
-					found = true
-					break
-				}
-			}
-		}
-		if found {
-			break
-		}
-	}
+	zoneIdPair, zone, zoneRecords, vpcNetStr, location, qTypeExist := p.findBestZoneIdPair(qName, qType, ecsIp, zoneKeys, conn)
 
 	if err != nil || zoneIdPair == nil || location == "" || !qTypeExist {
 		log.Debugf("couldn't find the record")
@@ -271,6 +221,55 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	m = state.Scrub(m)
 	_ = w.WriteMsg(m)
 	return dns.RcodeSuccess, nil
+}
+
+func (p *Plugin) findBestZoneIdPair(qName string, qType uint16, ecsIp net.IP, zoneKeys []string, conn redisCon.Conn) (zoneIdPair *ZoneIdPair, zone *record.Zone, zoneRecords *record.Records, vpcNetStr string, location string, qTypeExist bool) {
+	for _, zk := range shuffleKeys(zoneKeys) {
+		zip, err := p.MakeZoneIdPair(zk)
+		zid := zip.ZoneId
+		zn := zip.ZoneName
+		var found bool
+		vpcAssocs, err := p.Redis.GetVpcZoneAssociation(zid, conn)
+		for _, as := range *vpcAssocs {
+			if err != nil {
+				log.Debugf(err.Error())
+				continue
+			}
+
+			log.Debugf("loading zones for zone: %s, with zoneId: %s", zn, zid)
+			z := p.Redis.LoadZoneC(zn, zid, false, conn)
+			if z == nil {
+				log.Debugf("unable to load zone: %s", zn)
+				continue
+			}
+
+			l := p.Redis.FindLocation(qName, z)
+			if l == "" {
+				log.Debugf("location %s not foundKeys for zone: %s", qName, z)
+				continue
+			}
+
+			zr := p.Redis.LoadZoneRecordsC(l, zid, z, conn)
+			e := zr.TypeExist(dns.Type(qType).String())
+			if e {
+				zoneIdPair = zip
+				zone = z
+				location = l
+				qTypeExist = e
+				zoneRecords = zr
+				_, vpcNet, err := net.ParseCIDR(as.VpcCidr)
+				vpcNetStr = vpcNet.String()
+				if err == nil && vpcNet.Contains(ecsIp) {
+					found = true
+					break
+				}
+			}
+		}
+		if found {
+			break
+		}
+	}
+	return zoneIdPair, zone, zoneRecords, vpcNetStr, location, qTypeExist
 }
 
 func shuffleKeys(ks []string) []string {
