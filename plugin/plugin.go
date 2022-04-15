@@ -223,7 +223,8 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	return dns.RcodeSuccess, nil
 }
 
-func (p *Plugin) findBestZoneIdPair(qName string, qType uint16, ecsIp net.IP, zoneKeys []string, conn redisCon.Conn) (zoneIdPair *ZoneIdPair, zone *record.Zone, zoneRecords *record.Records, vpcNetStr string, location string, qTypeExist bool) {
+func (p *Plugin) findBestZoneIdPair(qName string, qType uint16, ecsIp net.IP, zoneKeys []string, conn redisCon.Conn) (
+	zoneIdPair *ZoneIdPair, zone *record.Zone, zoneRecords *record.Records, vpcNetStr string, location string, qTypeExist bool) {
 	for _, zk := range shuffleKeys(zoneKeys) {
 		zip, err := p.MakeZoneIdPair(zk)
 		zid := zip.ZoneId
