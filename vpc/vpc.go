@@ -4,7 +4,7 @@ import (
 	_ "fmt"
 )
 
-type VpcZoneAssociation struct {
+type ZoneAssociation struct {
 	VpcId     string `json:"vpcId,omitempty"`
 	VpcCidr   string `json:"vpcCidr,omitempty"`
 	VpcRegion string `json:"vpcRegion,omitempty"`

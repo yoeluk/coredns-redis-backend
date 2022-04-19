@@ -460,16 +460,16 @@ func (redis *Redis) Connect() error {
 	return nil
 }
 
-func (redis *Redis) GetVpcZoneAssociation(zoneId string, conn redisCon.Conn) (*[]vpc.VpcZoneAssociation, error) {
+func (redis *Redis) GetVpcZoneAssociation(zoneId string, conn redisCon.Conn) (*[]vpc.ZoneAssociation, error) {
 	var (
 		reply    interface{}
 		err      error
 		value    string
-		vpcAssoc []vpc.VpcZoneAssociation
+		vpcAssoc []vpc.ZoneAssociation
 	)
 	reply, err = conn.Do("GET", redis.VpcPrefix+redis.keyPrefix+zoneId)
 	value, err = redisCon.String(reply, err)
-	vpcAssoc = make([]vpc.VpcZoneAssociation, 0, 0)
+	vpcAssoc = make([]vpc.ZoneAssociation, 0, 0)
 	err = json.Unmarshal([]byte(value), &vpcAssoc)
 	if err == nil {
 		return &vpcAssoc, nil
