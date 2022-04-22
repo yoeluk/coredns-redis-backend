@@ -29,7 +29,7 @@ type Redis struct {
 	password       string
 	connectTimeout int
 	readTimeout    int
-	keyPrefix      string
+	KeyPrefix      string
 	keySuffix      string
 	referralPrefix string
 	VpcPrefix      string
@@ -63,7 +63,7 @@ func (redis *Redis) SetPassword(p string) {
 
 // SetKeyPrefix sets a prefix for all redis-keys (optional)
 func (redis *Redis) SetKeyPrefix(p string) {
-	redis.keyPrefix = p
+	redis.KeyPrefix = p
 }
 
 // SetKeySuffix sets a suffix for all redis-keys (optional)
@@ -467,7 +467,7 @@ func (redis *Redis) GetVpcZoneAssociation(zoneId string, conn redisCon.Conn) (*[
 		value    string
 		vpcAssoc []vpc.ZoneAssociation
 	)
-	reply, err = conn.Do("GET", redis.VpcPrefix+redis.keyPrefix+zoneId)
+	reply, err = conn.Do("GET", redis.VpcPrefix+redis.KeyPrefix+zoneId)
 	value, err = redisCon.String(reply, err)
 	vpcAssoc = make([]vpc.ZoneAssociation, 0, 0)
 	err = json.Unmarshal([]byte(value), &vpcAssoc)
@@ -543,7 +543,7 @@ func (redis *Redis) CheckReferralNeeded(name string) (bool, error) {
 	conn := redis.Pool.Get()
 	defer conn.Close()
 
-	reply, err := conn.Do("EXISTS", redis.referralPrefix+redis.keyPrefix+name)
+	reply, err := conn.Do("EXISTS", redis.referralPrefix+redis.KeyPrefix+name)
 	zoneCount, err := redisCon.Int(reply, err)
 	if err != nil {
 		return false, err
@@ -557,7 +557,7 @@ func (redis *Redis) CheckDomainExist(domain string, wildcard string) ([]string, 
 	defer conn.Close()
 	iter := 0
 	keys := make([]string, 0, 0)
-	searchPattern := redis.keyPrefix + wildcard + domain + ":*"
+	searchPattern := redis.KeyPrefix + wildcard + domain + ":*"
 	log.Debugf("searching for zoneKey with pattern: %s", searchPattern)
 	for {
 		arr, err := conn.Do("SCAN", iter, "MATCH", searchPattern, "COUNT", 250)
@@ -603,7 +603,7 @@ func (redis *Redis) LoadReferralZoneC(zone string, conn redisCon.Conn) (*record.
 		soa               string
 	)
 
-	refRecKey := redis.keyPrefix + redis.referralPrefix + zone
+	refRecKey := redis.KeyPrefix + redis.referralPrefix + zone
 	recKey := "_authority_ref"
 
 	reply, err = conn.Do("HGET", refRecKey, recKey)
@@ -701,7 +701,7 @@ func (redis *Redis) LoadZoneNamesC(name string, conn redisCon.Conn) ([]string, e
 		query = name
 	}
 
-	reply, err = conn.Do("KEYS", redis.keyPrefix+"*"+query+redis.keySuffix)
+	reply, err = conn.Do("KEYS", redis.KeyPrefix+"*"+query+redis.keySuffix)
 	if err != nil {
 		return nil, err, false
 	}
@@ -712,7 +712,7 @@ func (redis *Redis) LoadZoneNamesC(name string, conn redisCon.Conn) ([]string, e
 	}
 
 	for i := range zones {
-		zones[i] = strings.TrimPrefix(zones[i], redis.keyPrefix)
+		zones[i] = strings.TrimPrefix(zones[i], redis.KeyPrefix)
 		zones[i] = strings.TrimSuffix(zones[i], redis.keySuffix)
 	}
 	return zones, nil, true
@@ -720,7 +720,7 @@ func (redis *Redis) LoadZoneNamesC(name string, conn redisCon.Conn) ([]string, e
 
 // Key returns the given key with prefix and suffix
 func (redis *Redis) Key(zoneName string, suffix string) string {
-	return redis.keyPrefix + dns.Fqdn(zoneName) + suffix
+	return redis.KeyPrefix + dns.Fqdn(zoneName) + suffix
 }
 
 func keyExists(key string, z *record.Zone) bool {

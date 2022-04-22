@@ -277,7 +277,7 @@ func (p *Plugin) ServeDNS(ctx context.Context, w dns.ResponseWriter, r *dns.Msg)
 	return dns.RcodeSuccess, nil
 }
 
-func shuffleKeys(ks []string) []string {
+func shuffleKeys[E any](ks []E) []E {
 	rand.Seed(time.Now().Unix())
 	rand.Shuffle(len(ks), func(i, j int) {
 		ks[i], ks[j] = ks[j], ks[i]
