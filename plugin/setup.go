@@ -53,32 +53,32 @@ func redisParse(c *caddy.Controller) (*redis.Redis, error) {
 				switch c.Val() {
 				case "address":
 					if !c.NextArg() {
-						return redis.New(), c.ArgErr()
+						return r, c.ArgErr()
 					}
 					r.SetAddress(c.Val())
 				case "username":
 					if !c.NextArg() {
-						return redis.New(), c.ArgErr()
+						return r, c.ArgErr()
 					}
 					r.SetUsername(c.Val())
 				case "password":
 					if !c.NextArg() {
-						return redis.New(), c.ArgErr()
+						return r, c.ArgErr()
 					}
 					r.SetPassword(c.Val())
 				case "prefix":
 					if !c.NextArg() {
-						return redis.New(), c.ArgErr()
+						return r, c.ArgErr()
 					}
 					r.SetKeyPrefix(c.Val())
 				case "suffix":
 					if !c.NextArg() {
-						return redis.New(), c.ArgErr()
+						return r, c.ArgErr()
 					}
 					r.SetKeySuffix(c.Val())
 				case "connect_timeout":
 					if !c.NextArg() {
-						return redis.New(), c.ArgErr()
+						return r, c.ArgErr()
 					}
 					t, err := strconv.Atoi(c.Val())
 					if err == nil {
@@ -86,7 +86,7 @@ func redisParse(c *caddy.Controller) (*redis.Redis, error) {
 					}
 				case "read_timeout":
 					if !c.NextArg() {
-						return redis.New(), c.ArgErr()
+						return r, c.ArgErr()
 					}
 					t, err := strconv.Atoi(c.Val())
 					if err != nil {
@@ -94,7 +94,7 @@ func redisParse(c *caddy.Controller) (*redis.Redis, error) {
 					}
 				case "ttl":
 					if !c.NextArg() {
-						return redis.New(), c.ArgErr()
+						return r, c.ArgErr()
 					}
 					t, err := strconv.Atoi(c.Val())
 					if err != nil {
@@ -104,17 +104,17 @@ func redisParse(c *caddy.Controller) (*redis.Redis, error) {
 					}
 				case "referral_prefix":
 					if !c.NextArg() {
-						return redis.New(), c.ArgErr()
+						return r, c.ArgErr()
 					}
 					r.SetReferralPrefix(c.Val())
 				case "root_host":
 					if !c.NextArg() {
-						return redis.New(), c.ArgErr()
+						return r, c.ArgErr()
 					}
 					r.SetRootHost(c.Val())
 				default:
 					if c.Val() != "}" {
-						return redis.New(), c.Errf("unknown property '%s'", c.Val())
+						return r, c.Errf("unknown property '%s'", c.Val())
 					}
 				}
 
